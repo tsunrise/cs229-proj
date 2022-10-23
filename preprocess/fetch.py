@@ -1,6 +1,6 @@
 import os
 import requests
-from tqdm import tqdm
+import tqdm
 import toml
 import tarfile
 import shutil
@@ -20,7 +20,7 @@ def download(filename: str, url: str) -> str:
             chunk_size = 1024
             with open(cache_path, "wb") as f:
                 print(f"Downloading {filename} from {url}")
-                progress = tqdm(total = total_size_in_bytes, unit = 'iB', unit_scale = True, colour="blue")
+                progress = tqdm.tqdm(total = total_size_in_bytes, unit = 'iB', unit_scale = True, colour="blue")
                 for chunk in r.iter_content(chunk_size=chunk_size):
                     progress.update(len(chunk))
                     f.write(chunk)
@@ -49,7 +49,7 @@ def dump_crate_io() -> CratesIOCSVPath:
     print("Extracting crates-io data")
     with tarfile.open(tar_path) as tar:
         paths = {}
-        for info in tqdm(tar.getmembers(), unit="files", colour="green"):
+        for info in tqdm.tqdm(tar.getmembers(), unit="files", colour="green"):
             filename = os.path.basename(info.name)
             if filename.endswith(".csv"):
                 info.name = os.path.basename(info.name)
