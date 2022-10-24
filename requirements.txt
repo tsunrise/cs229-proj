@@ -8,4 +8,5 @@ toml
 tqdm
 sklearn
 requests
-marko
+markdown
+bs4

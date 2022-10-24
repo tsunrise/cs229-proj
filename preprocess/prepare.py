@@ -79,4 +79,7 @@ class CratesData:
 
     def num_categories(self) -> int:
         return len(self.categories)
+
+
+
   
