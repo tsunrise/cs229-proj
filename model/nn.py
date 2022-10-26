@@ -7,14 +7,14 @@ import torch
 import torch.nn as nn
 
 class MyNet(nn.Module):
-    def __init__(self, num_words, num_categories):
+    def __init__(self, num_words, num_categories, device):
         super(MyNet, self).__init__()
-        self.fc1 = nn.Linear(num_words, 500)
-        self.fc2 = nn.Linear(500, 500)
-        self.fc3 = nn.Linear(500, 500)
-        self.fc4 = nn.Linear(500, num_categories)
+        self.fc1 = nn.Linear(num_words, 500).to(device)
+        self.fc2 = nn.Linear(500, 500).to(device)
+        self.fc3 = nn.Linear(500, num_categories).to(device)
+        # self.fc3s = [nn.Linear(500, 20).to(device) for _ in range(num_categories)]
+        # self.fc4 = [nn.Linear(20, 1).to(device) for _ in range(num_categories)]
         self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x = self.fc1(x)
@@ -22,9 +22,15 @@ class MyNet(nn.Module):
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        x = self.relu(x)
-        x = self.fc4(x)
         return x
+        # x = self.relu(x)
+        # outs = []
+        # for i in range(len(self.fc3s)):
+        #     a = self.fc3s[i](x)
+        #     a = self.relu(a)
+        #     a = self.fc4[i](a)
+        #     outs.append(a)
+        # return torch.cat(outs, dim=1)
 
 class DNNModel:
     def __init__(self, num_categories, learning_rate=0.001, reg=0.0, weight_decay=0.0):
@@ -33,7 +39,7 @@ class DNNModel:
         self.learning_rate = learning_rate
         self.reg = reg
         self.weight_decay = weight_decay
-        self.criterion = nn.CrossEntropyLoss()
+        self.loss = nn.BCEWithLogitsLoss()
 
     def fit(self, X, y, epochs=10):
         """
@@ -58,7 +64,7 @@ class DNNModel:
         X_val = X[:val_size]
         y_val = y[:val_size]
 
-        self.model = MyNet(self.num_words, self.num_categories).to(self.device)
+        self.model = MyNet(self.num_words, self.num_categories, self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.reg)
 
         for epoch in range(epochs):
@@ -66,10 +72,10 @@ class DNNModel:
             epoch_loss = 0
             for batch_lo in range(0, X_train.shape[0], 64):
                 local_batch_size = min(64, self.num_crates - batch_lo)
-                batch_X = torch.from_numpy(X_train[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
-                batch_y = torch.from_numpy(y_train[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
+                batch_X = torch.tensor(X_train[batch_lo:batch_lo + local_batch_size], device=self.device)
+                batch_y = torch.tensor(y_train[batch_lo:batch_lo + local_batch_size], device=self.device)
                 output = self.model(batch_X)
-                loss = self.criterion(output, batch_y)
+                loss = self.loss(output, batch_y)
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
@@ -82,7 +88,7 @@ class DNNModel:
                     batch_X = torch.from_numpy(X_val[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
                     batch_y = torch.from_numpy(y_val[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
                     output = self.model(batch_X)
-                    loss = self.criterion(output, batch_y)
+                    loss = self.loss(output, batch_y)
                     epoch_loss += loss.item()
                 val_loss = epoch_loss / X_val.shape[0]
             print("Epoch: {}, Loss: {:.4f}, val_loss: {:.4f}".format(epoch, train_loss, val_loss))
@@ -112,4 +118,23 @@ class DNNModel:
         Returns:
             A float representing the accuracy of the model.
         """
+        raise NotImplementedError()
+
+class LogisticRegression(nn.Module):
+    def __init__(self, num_words, num_categories, device):
+        super(LogisticRegression, self).__init__()
+        self.fc1 = nn.Linear(num_words, num_categories).to(device)
+        self.loss = nn.BCEWithLogitsLoss()
+
+    def forward(self, x):
+        return self.fc1(x)
+
+class LogisticRegressionModel:
+    def fit(self, X, y, epochs=10):
+        raise NotImplementedError()
+    
+    def predict(self, X):
+        raise NotImplementedError()
+
+    def score(self, X, y):
         raise NotImplementedError()
