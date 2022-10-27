@@ -6,32 +6,32 @@ import tqdm
 
 class NaiveBayes:
 
-    def fit(self, X, y, num_categories: int):
+    def fit(self, X_train, y_train, num_categories: int):
         """
-        Fit the model to the data.
+        Fit the model to the data, using multinomial event model.
 
         Args:
             X: A numpy array of shape (num_crates, num_words) containing the word counts for each crate.
             y: A numpy array of shape (num_crates, num_categories) containing one-hot encoded categories (can be multiple).
         """
         # prior
-        phi_y = np.mean(y, axis=0)
+        phi_y = np.mean(y_train, axis=0)
         # laplace smoothing
-        k = X.shape[1]
+        bag_size = X_train.shape[1]
         # likelihood
         log_phi_xy1 = []
         log_phi_xy0 = []
         for i in tqdm.tqdm(range(num_categories), desc='Fitting model'):
-            log_phi_xy1.append(np.log((np.sum(X[y[:, i] == 1], axis=0) + 1) / (np.sum(y[:, i] == 1) + k)).reshape(-1))
-            log_phi_xy0.append(np.log((np.sum(X[y[:, i] == 0], axis=0) + 1) / (np.sum(y[:, i] == 0) + k)).reshape(-1))
+            log_phi_xy1.append(np.log((np.sum(X_train[y_train[:, i] == 1], axis=0) + 1) / (np.sum(X_train[y_train[:, i] == 1]) + bag_size)).reshape(-1))
+            log_phi_xy0.append(np.log((np.sum(X_train[y_train[:, i] == 0], axis=0) + 1) / (np.sum(X_train[y_train[:, i] == 0]) + bag_size)).reshape(-1))
         
         self.phi_y = phi_y
         self.log_phi_xy1 = log_phi_xy1
         self.log_phi_xy0 = log_phi_xy0
         
         self.num_categories = num_categories
-        self.num_crates = X.shape[0]
-        self.num_words = X.shape[1]
+        self.num_crates = X_train.shape[0]
+        self.num_words = X_train.shape[1]
 
     def predict(self, X):
         """
@@ -62,17 +62,3 @@ class NaiveBayes:
                 decision[:, i] = (log_p1 > log_p0).astype(int)
         
         return decision, np.array(log_p1s), np.array(log_p0s)
-
-
-    def score(self, X, y):
-        """
-        Compute the accuracy of the model.
-
-        Args:
-            X: A numpy array of shape (num_crates, num_words) containing the word counts for each crate.
-            y: A numpy array of shape (num_crates, num_categories) containing one-hot encoded categories (can be multiple).
-
-        Returns:
-            The accuracy of the model.
-        """
-        ...

@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from metrics.hamming import hamming_distance
+
 class MyNet(nn.Module):
     def __init__(self, num_words, num_categories, device):
         super(MyNet, self).__init__()
@@ -41,7 +43,7 @@ class DNNModel:
         self.weight_decay = weight_decay
         self.loss = nn.BCEWithLogitsLoss()
 
-    def fit(self, X, y, epochs=10):
+    def fit(self, X_train, y_train, X_val, y_val, epochs=10, batch_size = 64):
         """
         Fit the model to the data.
 
@@ -49,20 +51,12 @@ class DNNModel:
             X: A numpy array of shape (num_crates, num_words) containing the word counts for each crate.
             y: A numpy array of shape (num_crates, num_categories) containing one-hot encoded categories (can be multiple).
         """
-        self.num_crates = X.shape[0]
-        self.num_words = X.shape[1]
+        self.num_crates = X_train.shape[0]
+        self.num_words = X_train.shape[1]
 
         # shuffle X and y
         idx = np.arange(self.num_crates)
         np.random.shuffle(idx)
-        X = X[idx].astype(np.float32)
-        y = y[idx].astype(np.float32)
-
-        val_size = int(self.num_crates * 0.1)
-        X_train = X[val_size:]
-        y_train = y[val_size:]
-        X_val = X[:val_size]
-        y_val = y[:val_size]
 
         self.model = MyNet(self.num_words, self.num_categories, self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.reg)
@@ -70,8 +64,8 @@ class DNNModel:
         for epoch in range(epochs):
             self.optimizer.zero_grad()
             epoch_loss = 0
-            for batch_lo in range(0, X_train.shape[0], 64):
-                local_batch_size = min(64, self.num_crates - batch_lo)
+            for batch_lo in range(0, X_train.shape[0], batch_size):
+                local_batch_size = min(batch_size, self.num_crates - batch_lo)
                 batch_X = torch.tensor(X_train[batch_lo:batch_lo + local_batch_size], device=self.device)
                 batch_y = torch.tensor(y_train[batch_lo:batch_lo + local_batch_size], device=self.device)
                 output = self.model(batch_X)
@@ -83,17 +77,23 @@ class DNNModel:
             # evaluate on validation set
             with torch.no_grad():
                 epoch_loss = 0
-                for batch_lo in range(0, X_val.shape[0], 64):
-                    local_batch_size = min(64, self.num_crates - batch_lo)
+                for batch_lo in range(0, X_val.shape[0], batch_size):
+                    local_batch_size = min(batch_size, self.num_crates - batch_lo)
                     batch_X = torch.from_numpy(X_val[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
                     batch_y = torch.from_numpy(y_val[batch_lo:batch_lo + local_batch_size]).float().to(self.device)
                     output = self.model(batch_X)
                     loss = self.loss(output, batch_y)
                     epoch_loss += loss.item()
                 val_loss = epoch_loss / X_val.shape[0]
-            print("Epoch: {}, Loss: {:.4f}, val_loss: {:.4f}".format(epoch, train_loss, val_loss))
 
-    def predict(self, X):
+            with torch.no_grad():
+                y_train_pred = self.predict(X_train)
+                y_val_pred = self.predict(X_val)
+                train_hamming_dist = hamming_distance(y_train, y_train_pred)
+                val_hamming_dist = hamming_distance(y_val, y_val_pred)
+                print("Epoch: {}, Loss: {:.4f}, val_loss: {:.4f}, Hamming Distance: {:.4f}, val_hamming_dist: {:.4f}".format(epoch, train_loss, val_loss, train_hamming_dist, val_hamming_dist))
+
+    def predict(self, X, logits=False):
         """
         Predict the categories for each crate in X.
 
@@ -105,20 +105,10 @@ class DNNModel:
         """
         X = torch.from_numpy(X).float().to(self.device)
         decision = self.model(X).detach().cpu().numpy()
-        return decision
-
-    def score(self, X, y):
-        """
-        Compute the accuracy of the model.
-
-        Args:
-            X: A numpy array of shape (m, num_words) containing the word counts for each crate.
-            y: A numpy array of shape (m, num_categories) containing the one-hot encoded categories (can be multiple).
-
-        Returns:
-            A float representing the accuracy of the model.
-        """
-        raise NotImplementedError()
+        if logits:
+            return decision
+        else:
+            return (decision > 0).astype(int)
 
 class LogisticRegression(nn.Module):
     def __init__(self, num_words, num_categories, device):
