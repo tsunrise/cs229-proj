@@ -6,7 +6,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from metrics.hamming import hamming_distance
+from metrics.metrics import accuracy_samples
+
+class LogisticRegression(nn.Module):
+    def __init__(self, num_words, num_categories, device):
+        super(LogisticRegression, self).__init__()
+        self.fc1 = nn.Linear(num_words, num_categories).to(device)
+        self.loss = nn.BCEWithLogitsLoss()
+
+    def forward(self, x):
+        return self.fc1(x)
+
 
 class MyNet(nn.Module):
     def __init__(self, num_words, num_categories, device):
@@ -34,6 +44,7 @@ class MyNet(nn.Module):
         #     outs.append(a)
         # return torch.cat(outs, dim=1)
 
+
 class DNNModel:
     def __init__(self, num_categories, learning_rate=0.001, reg=0.0, weight_decay=0.0):
         self.num_categories = num_categories
@@ -43,7 +54,7 @@ class DNNModel:
         self.weight_decay = weight_decay
         self.loss = nn.BCEWithLogitsLoss()
 
-    def fit(self, X_train, y_train, X_val, y_val, epochs=10, batch_size = 64):
+    def fit(self, model_func, X_train, y_train, X_val, y_val, epochs=10, batch_size = 64):
         """
         Fit the model to the data.
 
@@ -58,7 +69,7 @@ class DNNModel:
         idx = np.arange(self.num_crates)
         np.random.shuffle(idx)
 
-        self.model = MyNet(self.num_words, self.num_categories, self.device)
+        self.model = model_func(self.num_words, self.num_categories, self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.reg)
 
         for epoch in range(epochs):
@@ -89,8 +100,10 @@ class DNNModel:
             with torch.no_grad():
                 y_train_pred = self.predict(X_train)
                 y_val_pred = self.predict(X_val)
-                train_hamming_dist = hamming_distance(y_train, y_train_pred)
-                val_hamming_dist = hamming_distance(y_val, y_val_pred)
+                _, train_hamming_dist = accuracy_samples(y_train, y_train_pred)
+                train_hamming_dist = 1 - train_hamming_dist
+                _, val_hamming_dist = accuracy_samples(y_val, y_val_pred)
+                val_hamming_dist = 1 - val_hamming_dist
                 print("Epoch: {}, Loss: {:.4f}, val_loss: {:.4f}, Hamming Distance: {:.4f}, val_hamming_dist: {:.4f}".format(epoch, train_loss, val_loss, train_hamming_dist, val_hamming_dist))
 
     def predict(self, X, logits=False):
@@ -109,22 +122,3 @@ class DNNModel:
             return decision
         else:
             return (decision > 0).astype(int)
-
-class LogisticRegression(nn.Module):
-    def __init__(self, num_words, num_categories, device):
-        super(LogisticRegression, self).__init__()
-        self.fc1 = nn.Linear(num_words, num_categories).to(device)
-        self.loss = nn.BCEWithLogitsLoss()
-
-    def forward(self, x):
-        return self.fc1(x)
-
-class LogisticRegressionModel:
-    def fit(self, X, y, epochs=10):
-        raise NotImplementedError()
-    
-    def predict(self, X):
-        raise NotImplementedError()
-
-    def score(self, X, y):
-        raise NotImplementedError()

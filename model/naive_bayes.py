@@ -4,9 +4,11 @@ Multi-label Naive Bayes classifier.
 import numpy as np
 import tqdm
 
-class NaiveBayes:
+class NaiveBayesModel:
+    def __init__(self, num_categories):
+        self.num_categories = num_categories
 
-    def fit(self, X_train, y_train, num_categories: int):
+    def fit(self, X_train, y_train):
         """
         Fit the model to the data, using multinomial event model.
 
@@ -21,7 +23,7 @@ class NaiveBayes:
         # likelihood
         log_phi_xy1 = []
         log_phi_xy0 = []
-        for i in tqdm.tqdm(range(num_categories), desc='Fitting model'):
+        for i in tqdm.tqdm(range(self.num_categories), desc='Fitting model'):
             log_phi_xy1.append(np.log((np.sum(X_train[y_train[:, i] == 1], axis=0) + 1) / (np.sum(X_train[y_train[:, i] == 1]) + bag_size)).reshape(-1))
             log_phi_xy0.append(np.log((np.sum(X_train[y_train[:, i] == 0], axis=0) + 1) / (np.sum(X_train[y_train[:, i] == 0]) + bag_size)).reshape(-1))
         
@@ -29,7 +31,7 @@ class NaiveBayes:
         self.log_phi_xy1 = log_phi_xy1
         self.log_phi_xy0 = log_phi_xy0
         
-        self.num_categories = num_categories
+        self.num_categories = self.num_categories
         self.num_crates = X_train.shape[0]
         self.num_words = X_train.shape[1]
 
