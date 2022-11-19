@@ -6,10 +6,9 @@ torch
 matplotlib
 toml
 tqdm
-sklearn
+scikit-learn
 requests
 markdown
 bs4
 transformers
-torchtext
 tensorboard

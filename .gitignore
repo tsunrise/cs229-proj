@@ -167,3 +167,6 @@ cython_debug/
 
 *.ipynb
 tokenizer.json
+*.pth
+
+runs

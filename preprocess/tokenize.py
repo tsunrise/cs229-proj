@@ -1,3 +1,4 @@
+from typing import List
 from tokenizers import (
     decoders,
     models,
@@ -31,8 +32,9 @@ class MyTokenizer:
     def num_words(self):
         return self.tokenizer.get_vocab_size()
 
-    def encode_crate(self, crate: Crate):
-        return self(" ".join([crate.name, "description: ", crate.description, "readme: ", crate.readme]))
+    def encode_crates(self, crates: List[Crate], max_length: int):
+        text = [" ".join([crate.name, "description: ", crate.description, "readme: ", crate.readme][:max_length]) for crate in crates]
+        return [code.ids for code in self.tokenizer.encode_batch(text)]
 
 
 

@@ -1,6 +1,6 @@
 import numpy as np
 import sklearn.metrics as sklearn
-
+import torch
 def evaluate_performance(y_true, y_pred):
     metrics = [accuracy_emr, accuracy_samples,
                precision_micro, precision_macro, precision_weighted, precision_samples,
@@ -12,7 +12,6 @@ def evaluate_performance(y_true, y_pred):
         k, v = m(y_true, y_pred)
         results[k] = v
     return results
-
 
 def accuracy_emr(y_true, y_pred):
     label = "exact_match_ratio"
@@ -69,3 +68,14 @@ def f1_weighted(y_true, y_pred):
 def f1_samples(y_true, y_pred):
     label = "f1_samples"
     return label, sklearn.f1_score(y_true, y_pred, average='samples', zero_division=1)
+
+def logits_to_multi_hot(logits):
+    if isinstance(logits, list):
+        logits = np.array(logits)
+    elif isinstance(logits, torch.Tensor):
+        logits = logits.detach().cpu().numpy()
+    elif isinstance(logits, np.ndarray):
+        pass
+    else:
+        raise Exception("logits_to_multi_hot: unsupported type for logits")
+    return (logits > 0).astype(int)

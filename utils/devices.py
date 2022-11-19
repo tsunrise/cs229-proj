@@ -1,4 +1,5 @@
 import torch
+
 def status_check():
     cuda_available = torch.cuda.is_available()
     print("CUDA available: {}".format(cuda_available))

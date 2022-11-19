@@ -24,8 +24,8 @@ def cached(object_fn: Callable[[], T], file_name: str, always_miss: bool = False
         with open(cache_path, "rb") as f:
             return pickle.load(f)
     else:
+        obj = object_fn()
         with open(cache_path, "wb") as f:
-            obj = object_fn()
             pickle.dump(obj, f)
         print("Cached object to {}".format(cache_path))
         return obj
