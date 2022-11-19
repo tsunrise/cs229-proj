@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from tokenizers import (
     decoders,
     models,
@@ -36,23 +36,12 @@ class MyTokenizer:
         text = [" ".join([crate.name, "description: ", crate.description, "readme: ", crate.readme][:max_length]) for crate in crates]
         return [code.ids for code in self.tokenizer.encode_batch(text)]
 
-
-
-def train_tokenizer(num_words: int = 25000, save_path: str = "tokenizer.json", force_download: bool = False, cache_readme: bool = False):
+def train_tokenizer(crates: List[Crate], num_words: int = 25000, save_path: Optional[str] = None):
     tk = Tokenizer(models.WordPiece(unk_token=UNKNOWN_TOKEN))
     tk.normalizer = normalizers.BertNormalizer(clean_text=True, handle_chinese_chars=True, strip_accents=True, lowercase=True)
     tk.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
     trainer = trainers.WordPieceTrainer(vocab_size = num_words, special_tokens = SPECIAL_TOKENS)
 
-    # get crates
-    def get_data():
-        cratesData = CratesData(force_download=force_download)
-        cratesData.remove_no_category_()
-        cratesData.process_readme_()
-        return cratesData
-    
-    cratesData = cached(get_data, "crates_for_tokenizer.pkl", always_miss = not cache_readme)
-    crates = list(cratesData.all_crates())
     def get_training_corpus():
         for i in range(0, len(crates), 1024):
             corpus = []
@@ -65,10 +54,24 @@ def train_tokenizer(num_words: int = 25000, save_path: str = "tokenizer.json", f
 
     tk.decoder = decoders.WordPiece(prefix="##")
 
-    tk.save(save_path)
+    if save_path is not None:
+        tk.save(save_path)
 
     return MyTokenizer(tk)
 
+def train_tokenizer_main(num_words: int = 25000, save_path: str = "tokenizer.json", force_download: bool = False, cache_readme: bool = False):
+    # get crates
+    def get_data():
+        cratesData = CratesData(force_download=force_download)
+        cratesData.remove_no_category_()
+        cratesData.process_readme_()
+        return cratesData
+    
+    cratesData = cached(get_data, "crates_for_tokenizer.pkl", always_miss = not cache_readme)
+    crates = list(cratesData.all_crates())
+
+    # train tokenizer
+    return train_tokenizer(crates, num_words, save_path)
 
 
 

@@ -7,7 +7,7 @@ from utils.data import train_dev_split
 import utils.devices as devices
 import toml
 import argparse
-
+from preprocess.tokenize import train_tokenizer
 
 def load_data(force_cache_miss=False, force_download=False):
     def load():
@@ -21,12 +21,15 @@ def load_data(force_cache_miss=False, force_download=False):
     num_categories = len(crates_data.categories)
     return train, dev, num_categories
 
-def train_logistic(device, n_epochs, force_cache_miss, force_download):
+def train_logistic(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
     # TODO: tokenizer might be overfitting
     config = toml.load('config.toml')
     config = config["models"]["logistic"]
-    tokenizer = MyTokenizer.from_file(config["tokenizer"])
     train, val, num_categories = load_data(force_cache_miss, force_download)
+    if tokenizer_path is not None:
+        tokenizer = MyTokenizer.from_file(tokenizer_path)
+    else:
+        tokenizer = train_tokenizer(train, num_words=config["num_words"])
     dataset = BagOfWordsDataset(train, tokenizer, config["max_length"], num_categories)
     val_dataset = BagOfWordsDataset(val, tokenizer, config["max_length"], num_categories)
     model = LogisticRegression(tokenizer.num_words(),
@@ -45,6 +48,7 @@ if __name__ == '__main__':
     parser.add_argument("-n","--n_epochs", type=int, default=20)
     parser.add_argument("-fc","--force_cache_miss", action="store_true")
     parser.add_argument("-fd","--force_download", action="store_true")
+    parser.add_argument("-t", "--tokenizer", type=str, required=False)
     args = parser.parse_args()
     model = models[args.model]
-    model(args.device, args.n_epochs, args.force_cache_miss, args.force_download)
+    model(args.device, args.n_epochs, args.force_cache_miss, args.force_download, args.tokenizer)
