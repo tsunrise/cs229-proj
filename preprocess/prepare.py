@@ -2,7 +2,8 @@ import csv
 from dataclasses import dataclass
 from typing import Union
 import tqdm
-
+import markdown
+from bs4 import BeautifulSoup
 from preprocess.fetch import CratesIOCSVPath, dump_crate_io
 @dataclass
 class Category:
@@ -40,8 +41,8 @@ class Categories:
         return self._id2idx[id]
 
 class CratesData:
-    def __init__(self) -> None:
-        paths = dump_crate_io()
+    def __init__(self, force_download = False) -> None:
+        paths = dump_crate_io(force_download)
         self.categories = Categories(paths)
         self.id2crates = {}
         self.name2crates = {}
@@ -64,6 +65,23 @@ class CratesData:
             category = crate_category['category_id']
             if crate_id in self.id2crates and category in self.categories._id2idx:
                 self.id2crates[crate_id].category_indices.append(self.categories.index(category))
+
+    def remove_no_category_(self):
+        for crate in list(self.id2crates.values()):
+            if len(crate.category_indices) == 0:
+                del self.id2crates[crate.id]
+                del self.name2crates[crate.name]
+
+    def process_readme_(self):
+        # convert markdown to a list of words
+        for crate in tqdm.tqdm(self.id2crates.values(), desc='Processing readme'):
+            html = markdown.markdown(crate.readme)
+            text = BeautifulSoup(html, 'html.parser').get_text()
+            text = text.replace("\n", " ")
+            crate.readme = text
+
+    def all_crates(self):
+        return self.id2crates.values()
 
     def __getitem__(self, name: str) -> Crate:
         return self.name2crates[name]

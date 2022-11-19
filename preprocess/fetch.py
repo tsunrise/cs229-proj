@@ -9,12 +9,12 @@ from dataclasses import dataclass
 DATASETS_CONFIG_PATH = "datasets.toml"
 CACHE_DIR = ".cs229_cache"
 
-def download(filename: str, url: str) -> str:
+def download(filename: str, url: str, force: bool = False) -> str:
     """Download the tar file from crate.io, and output the path to the tar file."""
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
     cache_path = os.path.join(CACHE_DIR, filename)
-    if not os.path.exists(cache_path):
+    if not os.path.exists(cache_path) or force:
         with requests.get(url, stream=True) as r:
             total_size_in_bytes = int(r.headers.get('content-length', 0))
             chunk_size = 1024
@@ -36,10 +36,10 @@ class CratesIOCSVPath:
     crates_categories: str
     dependencies: str
 
-def dump_crate_io() -> CratesIOCSVPath:
+def dump_crate_io(force_download = False) -> CratesIOCSVPath:
     """Download the tar file from crate.io, and output the path to the csv data."""
     config = toml.load(DATASETS_CONFIG_PATH)
-    tar_path = download("crates-io.tar.gz", config["crates-io"]["url"])
+    tar_path = download("crates-io.tar.gz", config["crates-io"]["url"], force=force_download)
     # extract the tar file
     crates_io_path = os.path.join(CACHE_DIR, "crates-io")
     if os.path.exists(crates_io_path):

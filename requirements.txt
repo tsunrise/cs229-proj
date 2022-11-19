@@ -10,3 +10,5 @@ sklearn
 requests
 markdown
 bs4
+transformers
+torchtext
