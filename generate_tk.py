@@ -8,4 +8,4 @@ if __name__ == "__main__":
     parser.add_argument('--force_download', action='store_true')
     parser.add_argument('--cache_readme', action='store_true')
     args = parser.parse_args()
-    tokenize.train_tokenizers(num_words=args.num_words, save_path=args.save_path, force_download=args.force_download, cache_readme=args.cache_readme)
+    tokenize.train_tokenizer(num_words=args.num_words, save_path=args.save_path, force_download=args.force_download, cache_readme=args.cache_readme)

@@ -12,3 +12,4 @@ markdown
 bs4
 transformers
 torchtext
+tensorboard

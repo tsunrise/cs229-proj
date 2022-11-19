@@ -18,6 +18,7 @@ class Crate:
     description: str
     readme: str
     category_indices: list[int]
+    processed: False
 
 class Categories:
     def __init__(self, paths: CratesIOCSVPath) -> None:
@@ -54,7 +55,7 @@ class CratesData:
             name = crate['name']
             description = crate['description']
             readme = crate['readme']
-            crate = Crate(crate_id, name, description, readme, [])
+            crate = Crate(crate_id, name, description, readme, [], False)
             self.id2crates[crate_id] = crate
             self.name2crates[crate.name] = crate
         
@@ -79,6 +80,7 @@ class CratesData:
             text = BeautifulSoup(html, 'html.parser').get_text()
             text = text.replace("\n", " ")
             crate.readme = text
+            crate.processed = True
 
     def all_crates(self):
         return self.id2crates.values()

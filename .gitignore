@@ -166,3 +166,4 @@ cython_debug/
 .vscode/
 
 *.ipynb
+tokenizer.json

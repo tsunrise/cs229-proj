@@ -1,35 +1,45 @@
-from typing import Generator
-import tokenizers
 from tokenizers import (
     decoders,
     models,
     normalizers,
     pre_tokenizers,
-    processors,
     trainers,
     Tokenizer,
 )
-import markdown
-from bs4 import BeautifulSoup
 
-from preprocess.prepare import CratesData
+from preprocess.prepare import Crate, CratesData
 from utils.cache import cached
 
 # tokens
 UNKNOWN_TOKEN = "[UNK]"
 SPECIAL_TOKENS = [UNKNOWN_TOKEN]
 
-def train_tokenizers(num_words: int = 25000, save_path: str = "tokenizer.json", force_download: bool = False, cache_readme: bool = False) -> None:
+class MyTokenizer:
+    def __init__(self, tokenizer: Tokenizer) -> None:
+        self.tokenizer = tokenizer
+
+    def from_file(path: str = "tokenizer.json"):
+        tokenizer = Tokenizer.from_file(path)
+        return MyTokenizer(tokenizer)
+
+    def __call__(self, text: str):
+        return self.tokenizer.encode(text).ids
+
+    def encode(self, text: str):
+        return self.tokenizer.encode(text)
+
+    def num_words(self):
+        return self.tokenizer.get_vocab_size()
+
+    def encode_crate(self, crate: Crate):
+        return self(" ".join([crate.name, "description: ", crate.description, "readme: ", crate.readme]))
+
+
+
+def train_tokenizer(num_words: int = 25000, save_path: str = "tokenizer.json", force_download: bool = False, cache_readme: bool = False):
     tk = Tokenizer(models.WordPiece(unk_token=UNKNOWN_TOKEN))
-
-    tk.normalizer = normalizers.Sequence([
-        normalizers.NFD(),
-        normalizers.Lowercase(),
-        normalizers.StripAccents(),
-    ])
-
+    tk.normalizer = normalizers.BertNormalizer(clean_text=True, handle_chinese_chars=True, strip_accents=True, lowercase=True)
     tk.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
-
     trainer = trainers.WordPieceTrainer(vocab_size = num_words, special_tokens = SPECIAL_TOKENS)
 
     # get crates
@@ -51,7 +61,11 @@ def train_tokenizers(num_words: int = 25000, save_path: str = "tokenizer.json", 
     
     tk.train_from_iterator(get_training_corpus(), trainer)
 
+    tk.decoder = decoders.WordPiece(prefix="##")
+
     tk.save(save_path)
+
+    return MyTokenizer(tk)
 
 
 
