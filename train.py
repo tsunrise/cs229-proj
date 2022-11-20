@@ -1,4 +1,6 @@
-from model.logistic import LogisticRegression
+from model.logistic import LogisticModel
+from model.nn import NNModel
+from model.word_bag import train_word_bag_model
 from preprocess.dataset import BagOfWordsDataset
 from preprocess.prepare import CratesData
 from preprocess.tokenize import MyTokenizer
@@ -21,10 +23,7 @@ def load_data(force_cache_miss=False, force_download=False):
     num_categories = len(crates_data.categories)
     return train, dev, num_categories
 
-def train_logistic(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
-    # TODO: tokenizer might be overfitting
-    config = toml.load('config.toml')
-    config = config["models"]["logistic"]
+def train_word_bag(config, model, model_name, device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
     train, val, num_categories = load_data(force_cache_miss, force_download)
     if tokenizer_path is not None:
         tokenizer = MyTokenizer.from_file(tokenizer_path)
@@ -32,23 +31,31 @@ def train_logistic(device, n_epochs, force_cache_miss, force_download, tokenizer
         tokenizer = train_tokenizer(train, num_words=config["num_words"])
     dataset = BagOfWordsDataset(train, tokenizer, config["max_length"], num_categories)
     val_dataset = BagOfWordsDataset(val, tokenizer, config["max_length"], num_categories)
-    model = LogisticRegression(tokenizer.num_words(),
-     learning_rate=config["learning_rate"], num_epochs=n_epochs,batch_size=config["batch_size"],
-      num_categories=num_categories,max_length=config["max_length"], device=device)
-    model.fit(dataset, val_dataset)
-    model.save(config["name"] + ".pth")
+    train_word_bag_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
-models = {"logistic": train_logistic}
+def train_logistic(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
+    config = toml.load("config.toml")["models"]["logistic"]
+    model = LogisticModel(config["num_words"], config["num_categories"]).to(device)
+    model.train()
+    train_word_bag(config, model, "logistic", device, n_epochs, force_cache_miss, force_download, tokenizer_path)
+
+def train_nn(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
+    config = toml.load("config.toml")["models"]["nn"]
+    model = NNModel(config["num_words"], config["num_categories"]).to(device)
+    model.train()
+    train_word_bag(config, model, "nn", device, n_epochs, force_cache_miss, force_download, tokenizer_path)
+
+trainers = {"logistic": train_logistic, "nn": train_nn}
 
 if __name__ == '__main__':
     devices.status_check()
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--model", type=str, choices=models.keys())
+    parser.add_argument("-m", "--model", type=str, choices=trainers.keys())
     parser.add_argument("-d", "--device", type=str)
     parser.add_argument("-n","--n_epochs", type=int, default=20)
     parser.add_argument("-fc","--force_cache_miss", action="store_true")
     parser.add_argument("-fd","--force_download", action="store_true")
     parser.add_argument("-t", "--tokenizer", type=str, required=False)
     args = parser.parse_args()
-    model = models[args.model]
-    model(args.device, args.n_epochs, args.force_cache_miss, args.force_download, args.tokenizer)
+    trainer = trainers[args.model]
+    trainer(args.device, args.n_epochs, args.force_cache_miss, args.force_download, args.tokenizer)
