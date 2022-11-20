@@ -11,7 +11,7 @@ class NNModel(nn.Module):
         super().__init__()
         self.embedding = nn.EmbeddingBag(num_words, 512, mode='sum')
         self.activation = nn.ReLU()
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.5)
         self.fc1 = nn.Linear(512, num_categories)
 
 
