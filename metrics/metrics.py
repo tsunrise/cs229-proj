@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-
+from sklearn.metrics import precision_score, recall_score
 def logits_to_multi_hot(logits):
     if isinstance(logits, list):
         logits = np.array(logits)
@@ -25,19 +25,15 @@ def logits_to_labels(logits):
 
 def precision(y_true, y_pred):
     label = "precision"
-    # for each sample, the precision is the number of true positives divided by the number of predicted positives
-    denom = np.sum(y_pred, axis=1)
-    mask = denom > 0
-    precision = np.sum(y_true * y_pred, axis=1)[mask] / denom[mask]
-    return label, np.mean(precision) if len(precision) > 0 else 0
+    # for each class, the precision is the number of true positives divided by the number of true positives plus the number of false positives
+    # we calculate the weighted average of the precision of each class, where the weight is the number of true positives of that class
+    return label, precision_score(y_true, y_pred, average="weighted", zero_division=1)
 
 def recall(y_true, y_pred):
     label = "recall"
-    # for each sample, the recall is the number of true positives divided by the number of true positives plus the number of false negatives
-    denom = np.sum(y_true, axis=1)
-    mask = denom > 0
-    recall = np.sum(y_true * y_pred, axis=1)[mask] / denom[mask]
-    return label, np.mean(recall) if len(recall) > 0 else 0
+    # for each class, the precision is the number of true positives divided by the number of true positives plus the number of false positives
+    # we calculate the weighted average of the precision of each class, where the weight is the number of true positives of that class
+    return label, recall_score(y_true, y_pred, average="weighted", zero_division=1)
 
 def accept_rate(y_true, y_pred_labels):
     """
@@ -67,3 +63,17 @@ class PerformanceTracker:
 
     def get_results(self):
         return {k: np.mean(v) for k, v in self.results.items()}
+
+def baseline_accept_rate_expected(y_true):
+    """
+    y_true: (num_samples, num_categories)
+
+    p(accept) = \sum_{c=1}^k p(select c) * p(accept | select c)
+              = \sum_{c=1}^k p(select c) * p(c)
+    Since each p(c) ranges from 0 to 1, and p(select c) should sum to 1,
+    to maximize this sum, we should select the category with the highest p(c).
+    so p(accept) = \sum_{c=1}^k p(c) * I(c is the max p(c))
+                 = \max_{c=1}^k p(c)
+    """
+    p_c = np.mean(y_true, axis=0)
+    return np.max(p_c)

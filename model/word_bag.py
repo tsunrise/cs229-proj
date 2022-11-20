@@ -10,6 +10,9 @@ def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: BagOf
     dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=train_dataset.collate_fn)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=val_dataset.collate_fn)
 
+    baseline_ac_rate_expected = metrics.baseline_accept_rate_expected(train_dataset.categories)
+    print(f"baseline accept rate: {baseline_ac_rate_expected}")
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')

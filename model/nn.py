@@ -10,9 +10,10 @@ class NNModel(nn.Module):
         """
         super().__init__()
         self.embedding = nn.EmbeddingBag(num_words, 512, mode='sum')
-        self.activation = nn.ReLU()
+        self.activation = nn.LeakyReLU()
         self.dropout = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(512, num_categories)
+        self.fc1 = nn.Linear(512, 512)
+        self.fc2 = nn.Linear(512, num_categories)
 
 
 
@@ -20,5 +21,9 @@ class NNModel(nn.Module):
         X = self.embedding(indices, offsets)
         X = self.activation(X)
         X = self.dropout(X)
-        X = self.fc1(X)
+        X_rc = self.fc1(X)
+        X_rc = self.activation(X)
+        X = X + X_rc
+        X = self.dropout(X)
+        X = self.fc2(X)
         return X
