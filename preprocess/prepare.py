@@ -1,6 +1,6 @@
 import csv
 from dataclasses import dataclass
-from typing import Union
+from typing import List, Union
 import tqdm
 import markdown
 from bs4 import BeautifulSoup
@@ -17,7 +17,7 @@ class Crate:
     name: str
     description: str
     readme: str
-    category_indices: list[int]
+    category_indices: List[int]
     processed: False
     # TODO: add dependency data
 

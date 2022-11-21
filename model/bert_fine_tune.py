@@ -67,7 +67,7 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
             # performance evaluate
             training_perf.update(outputs, categories)
             progressbar.update(1)
-            progressbar.set_postfix(loss=round(loss.item(), 4), acceptance=round(training_perf.get_results()["accept_rate"], 4))
+            progressbar.set_postfix(loss=f"{loss.item():.4f}", acceptance=f"{training_perf.get_results()['accept_rate']:.4f}")
         progressbar.close()
 
         # validate
@@ -75,7 +75,7 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
             model.eval()
             val_loss = 0
             num_val_batches = 0
-            for item in tqdm(val_dataloader, total=num_batches, desc=f"Val Epoch {epoch}"):
+            for item in tqdm(val_dataloader, total=num_val_batches, desc=f"Val Epoch {epoch}"):
                 ids = item["ids"].to(device)
                 mask = item["mask"].to(device)
                 categories = torch.from_numpy(item["categories"]).to(device)
@@ -94,14 +94,12 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
         training_perf.write_to_tensorboard("training", writer, epoch, {"loss": average_loss})
         val_perf.write_to_tensorboard("validation", writer, epoch, {"loss": average_val_loss})
 
-        if epoch % 50 == 0:
-            snapshots.save_snapshot("distilbert", model, epoch)
+        snapshots.save_snapshot("distilbert", model, epoch, "backup")
 
         print(f'Training: {training_perf.get_results()}')
         print(f'Validation: {val_perf.get_results()}')
 
-        writer.flush()
-    writer.close()
+        writer.close()
 
 
 
