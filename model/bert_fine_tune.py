@@ -25,7 +25,7 @@ class DistilBERTFineTune(nn.Module):
         return self.output(X)
 
 
-def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device):
+def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
 
     train_dataset = BertDataset(train_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:1000]
@@ -39,14 +39,20 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
 
     criterion = torch.nn.BCEWithLogitsLoss()
     writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')
-    for epoch in range(num_epochs):
+    if checkpoint:
+        state = snapshots.load_snapshot(checkpoint)
+        model.load_state_dict(state.model)
+        epoch_start = state.epoch
+    else:
+        epoch_start = 0
+    for epoch in range(epoch_start, num_epochs):
         num_batches = len(dataloader)
         total_loss = 0
         training_perf = PerformanceTracker()
         val_perf = PerformanceTracker()
 
         model.train()
-        progressbar = tqdm(total=num_batches, desc=f"Training")
+        progressbar = tqdm(total=num_batches, desc=f"Training: {epoch:03d}")
         for item in dataloader:
             ids = item["ids"].to(device)
             mask = item["mask"].to(device)
