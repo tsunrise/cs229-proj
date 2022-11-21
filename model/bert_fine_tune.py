@@ -28,8 +28,8 @@ class DistilBERTFineTune(nn.Module):
 def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
 
-    train_dataset = BertDataset(train_crates, tokenizer, config["max_length"], config["num_categories"])
-    val_dataset = BertDataset(val_crates, tokenizer, config["max_length"], config["num_categories"])
+    train_dataset = BertDataset(train_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:1000]
+    val_dataset = BertDataset(val_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:100]
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"])
     
@@ -100,6 +100,7 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
         print(f'Training: {training_perf.get_results()}')
         print(f'Validation: {val_perf.get_results()}')
 
+        writer.flush()
     writer.close()
 
 
