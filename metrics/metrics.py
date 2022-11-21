@@ -1,6 +1,8 @@
+from typing import Literal
 import numpy as np
 import torch
 from sklearn.metrics import precision_score, recall_score
+from torch.utils.tensorboard import SummaryWriter
 def logits_to_multi_hot(logits):
     if isinstance(logits, list):
         logits = np.array(logits)
@@ -49,20 +51,30 @@ class PerformanceTracker:
         self.multi_label_metrics = [precision, recall]
         self.single_label_metrics = [accept_rate]
         self.results = {}
+        self.cnt = 0
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor):
         y_true = labels.detach().cpu().numpy()
         y_pred = logits_to_multi_hot(logits)
         for m in self.multi_label_metrics:
             k, v = m(y_true, y_pred)
-            self.results.setdefault(k, []).append(v)
+            self.results.setdefault(k, 0)
+            self.results[k] += v
         y_pred_labels = logits_to_labels(logits)
         for m in self.single_label_metrics:
             k, v = m(y_true, y_pred_labels)
-            self.results.setdefault(k, []).append(v)
+            self.results.setdefault(k, 0)
+            self.results[k] += v
+        self.cnt += 1
 
     def get_results(self):
-        return {k: np.mean(v) for k, v in self.results.items()}
+        return {k: v / self.cnt for k, v in self.results.items()}
+
+    def write_to_tensorboard(self, prefix: Literal["training", "validation"] , writer: SummaryWriter, step: int, extra: dict = {}):
+        for k, v in self.get_results().items():
+            writer.add_scalar(f"{prefix}/{k}", v, step)
+        for k, v in extra.items():
+            writer.add_scalar(f"{prefix}/{k}", v, step)
 
 def baseline_accept_rate_expected(y_true):
     """

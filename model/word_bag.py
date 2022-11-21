@@ -1,14 +1,14 @@
-from preprocess.dataset import BagOfWordsDataset
+from preprocess.dataset import TokenizedDataset
 from torch import nn
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from metrics import metrics
 from .criterion import weighted_bce_loss
 
-def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: BagOfWordsDataset,
-                         val_dataset: BagOfWordsDataset, config: dict, num_epochs: int, device=None):
-    dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=train_dataset.collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=val_dataset.collate_fn)
+def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: TokenizedDataset,
+                         val_dataset: TokenizedDataset, config: dict, num_epochs: int, device=None):
+    dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=train_dataset.word_bag_collate_fn)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=val_dataset.word_bag_collate_fn)
 
     baseline_ac_rate_expected = metrics.baseline_accept_rate_expected(train_dataset.categories)
     print(f"baseline accept rate: {baseline_ac_rate_expected}")
@@ -63,17 +63,10 @@ def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: BagOf
         average_loss = total_loss / num_batches
         average_val_loss = val_loss / num_val_batches
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.4f}, Val Loss: {average_val_loss:.4f}')
-        training_perf = training_perf.get_results()
-        val_perf = val_perf.get_results()
-        print(f'Training: {training_perf}')
-        print(f'Validation: {val_perf}')
-        writer.add_scalar('Training loss', average_loss, global_step=epoch)
-        writer.add_scalar('Validation loss', average_val_loss, global_step=epoch)
-        writer.add_scalar('Training precision', training_perf['precision'], global_step=epoch)
-        writer.add_scalar('Validation precision', val_perf['precision'], global_step=epoch)
-        writer.add_scalar('Training recall', training_perf['recall'], global_step=epoch)
-        writer.add_scalar('Validation recall', val_perf['recall'], global_step=epoch)
-        writer.add_scalar('Training accept rate', training_perf['accept_rate'], global_step=epoch)
-        writer.add_scalar('Validation accept rate', val_perf['accept_rate'], global_step=epoch)
+        training_perf.write_to_tensorboard("training", writer, epoch, {"loss": average_loss})
+        val_perf.write_to_tensorboard("validation", writer, epoch, {"loss": average_val_loss})
+
+        print(f'Training: {training_perf.get_results()}')
+        print(f'Validation: {val_perf.get_results()}')
 
         writer.close()

@@ -19,6 +19,11 @@ class Crate:
     readme: str
     category_indices: list[int]
     processed: False
+    # TODO: add dependency data
+
+    def processed_string(self):
+        assert self.processed
+        return " ".join([self.name, "description: ", self.description, "readme: ", self.readme])
 
 class Categories:
     def __init__(self, paths: CratesIOCSVPath) -> None:

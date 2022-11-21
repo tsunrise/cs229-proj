@@ -15,27 +15,6 @@ from utils.cache import cached
 UNKNOWN_TOKEN = "[UNK]"
 SPECIAL_TOKENS = [UNKNOWN_TOKEN]
 
-class MyTokenizer:
-    def __init__(self, tokenizer: Tokenizer) -> None:
-        self.tokenizer = tokenizer
-
-    def from_file(path: str = "tokenizer.json"):
-        tokenizer = Tokenizer.from_file(path)
-        return MyTokenizer(tokenizer)
-
-    def __call__(self, text: str):
-        return self.tokenizer.encode(text).ids
-
-    def encode(self, text: str):
-        return self.tokenizer.encode(text)
-
-    def num_words(self):
-        return self.tokenizer.get_vocab_size()
-
-    def encode_crates(self, crates: List[Crate], max_length: int):
-        text = [" ".join([crate.name, "description: ", crate.description, "readme: ", crate.readme][:max_length]) for crate in crates]
-        return [code.ids for code in self.tokenizer.encode_batch(text)]
-
 def train_tokenizer(crates: List[Crate], num_words: int = 25000, save_path: Optional[str] = None):
     tk = Tokenizer(models.WordPiece(unk_token=UNKNOWN_TOKEN))
     tk.normalizer = normalizers.BertNormalizer(clean_text=True, handle_chinese_chars=True, strip_accents=True, lowercase=True)
@@ -57,7 +36,7 @@ def train_tokenizer(crates: List[Crate], num_words: int = 25000, save_path: Opti
     if save_path is not None:
         tk.save(save_path)
 
-    return MyTokenizer(tk)
+    return tk
 
 def train_tokenizer_main(num_words: int = 25000, save_path: str = "tokenizer.json", force_download: bool = False, cache_readme: bool = False):
     # get crates

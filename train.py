@@ -1,15 +1,16 @@
 from model.logistic import LogisticModel
 from model.nn import NNModel
 from model.word_bag import train_word_bag_model
-from preprocess.dataset import BagOfWordsDataset
+import  model.bert_fine_tune as bert_fine_tune
+from preprocess.dataset import TokenizedDataset
 from preprocess.prepare import CratesData
-from preprocess.tokenize import MyTokenizer
 from utils.cache import cached
 from utils.data import train_dev_split
 import utils.devices as devices
 import toml
 import argparse
 from preprocess.tokenize import train_tokenizer
+from tokenizers import Tokenizer
 
 def load_data(force_cache_miss=False, force_download=False):
     def load():
@@ -26,11 +27,11 @@ def load_data(force_cache_miss=False, force_download=False):
 def train_word_bag(config, model, model_name, device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
     train, val, num_categories = load_data(force_cache_miss, force_download)
     if tokenizer_path is not None:
-        tokenizer = MyTokenizer.from_file(tokenizer_path)
+        tokenizer = Tokenizer.from_file(tokenizer_path)
     else:
         tokenizer = train_tokenizer(train, num_words=config["num_words"])
-    dataset = BagOfWordsDataset(train, tokenizer, config["max_length"], num_categories)
-    val_dataset = BagOfWordsDataset(val, tokenizer, config["max_length"], num_categories)
+    dataset = TokenizedDataset(train, tokenizer, config["max_length"], num_categories)
+    val_dataset = TokenizedDataset(val, tokenizer, config["max_length"], num_categories)
     train_word_bag_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
 def train_logistic(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
@@ -45,7 +46,19 @@ def train_nn(device, n_epochs, force_cache_miss, force_download, tokenizer_path=
     model.train()
     train_word_bag(config, model, "nn", device, n_epochs, force_cache_miss, force_download, tokenizer_path)
 
-trainers = {"logistic": train_logistic, "nn": train_nn}
+def train_distil_bert(device, n_epochs, force_cache_miss, force_download, tokenizer_path=None):
+    assert tokenizer_path is None, "Bert uses its own tokenizer"
+    config = toml.load("config.toml")["models"]["distil_bert"]
+    model = bert_fine_tune.DistilBERTFineTune(config["pretrained"], config["num_categories"]).to(device)
+    print(model)
+    model.train()
+    train, val, _ = load_data(force_cache_miss, force_download)
+    bert_fine_tune.train_distil_bert("distil_bert", model, config, train, val, n_epochs, device)
+    
+
+trainers = {"logistic": train_logistic,
+             "nn": train_nn,
+             "distil_bert": train_distil_bert}
 
 if __name__ == '__main__':
     devices.status_check()
