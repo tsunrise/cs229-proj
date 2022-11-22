@@ -14,7 +14,7 @@ class DistilBERTFineTune(nn.Module):
     def __init__(self, pretrained_name: str, num_categories: int):
         super().__init__()
         self.bert = DistilBertModel.from_pretrained(pretrained_name)
-        self.dropout = nn.Dropout(0.3)
+        self.dropout = nn.Dropout(0.5)
         self.output = nn.Linear(768, num_categories)
 
     def forward(self, ids, mask):
@@ -25,7 +25,7 @@ class DistilBERTFineTune(nn.Module):
         return self.output(X)
 
 
-def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
+def train_distil_bert(model_name, model: nn.Module, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
 
     train_dataset = BertDataset(train_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:1000]
@@ -43,6 +43,10 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
         state = snapshots.load_snapshot(checkpoint)
         model.load_state_dict(state.model)
         epoch_start = state.epoch
+        if state.optimizer:
+            optimizer.load_state_dict(state.optimizer)
+        if state.scheduler:
+            lr_scheduler.load_state_dict(state.scheduler)
     else:
         epoch_start = 0
     for epoch in range(epoch_start, num_epochs):
@@ -97,10 +101,10 @@ def train_distil_bert(model_name, model, config, train_crates: List[Crate],val_c
         average_loss = total_loss / num_batches
         average_val_loss = val_loss / num_val_batches
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.4f}, Val Loss: {average_val_loss:.4f}')
-        training_perf.write_to_tensorboard("training", writer, epoch, {"loss": average_loss})
+        training_perf.write_to_tensorboard("training", writer, epoch, {"loss": average_loss, "learning_rate": optimizer.param_groups[0]["lr"]})
         val_perf.write_to_tensorboard("validation", writer, epoch, {"loss": average_val_loss})
 
-        snapshots.save_snapshot("distilbert", model, epoch, "backup")
+        snapshots.save_snapshot("distilbert", model, epoch, "backup", optimizer, lr_scheduler)
 
         print(f'Training: {training_perf.get_results()}')
         print(f'Validation: {val_perf.get_results()}')
