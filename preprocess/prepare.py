@@ -5,6 +5,7 @@ import tqdm
 import markdown
 from bs4 import BeautifulSoup
 from preprocess.fetch import CratesIOCSVPath, dump_crate_io
+import datetime
 @dataclass
 class Category:
     id: str
@@ -17,13 +18,14 @@ class Crate:
     name: str
     description: str
     readme: str
+    dependency: List[str]
     category_indices: List[int]
     processed: False
     # TODO: add dependency data
 
     def processed_string(self):
         assert self.processed
-        return " ".join([self.name, "description: ", self.description, "readme: ", self.readme])
+        return " ".join([self.name, ".", "dependencies: "] + self.dependency + ["description: ", self.description, "readme: ", self.readme])
 
 class Categories:
     def __init__(self, paths: CratesIOCSVPath) -> None:
@@ -60,7 +62,7 @@ class CratesData:
             name = crate['name']
             description = crate['description']
             readme = crate['readme']
-            crate = Crate(crate_id, name, description, readme, [], False)
+            crate = Crate(crate_id, name, description, readme, [], [], False)
             self.id2crates[crate_id] = crate
             self.name2crates[crate.name] = crate
         
@@ -72,9 +74,50 @@ class CratesData:
             if crate_id in self.id2crates and category in self.categories._id2idx:
                 self.id2crates[crate_id].category_indices.append(self.categories.index(category))
 
+        print(f"Loading version ids")
+        version_id_to_crate_id = {}
+        crate_id_to_latest_version_id = {}
+        crate_id_to_time = {}
+        with open(paths.versions, 'r', encoding='utf-8') as f:
+            for version in tqdm.tqdm(csv.DictReader(f)):
+                crate_id = version['crate_id']
+                version_id = version['id']
+                update_time_str = version['updated_at'] # example: 2022-10-07 23:40:17.141
+                update_time = datetime.datetime.strptime(update_time_str, '%Y-%m-%d %H:%M:%S.%f')
+                if crate_id in crate_id_to_latest_version_id:
+                    if update_time > crate_id_to_time[crate_id]:
+                        old_version_id = crate_id_to_latest_version_id[crate_id]
+                        crate_id_to_latest_version_id[crate_id] = version_id
+                        crate_id_to_time[crate_id] = update_time
+                        del version_id_to_crate_id[old_version_id]
+                    else:
+                        continue
+                version_id_to_crate_id[version_id] = crate_id
+                crate_id_to_latest_version_id[crate_id] = version_id
+                crate_id_to_time[crate_id] = update_time
+        del crate_id_to_time
+        del crate_id_to_latest_version_id
+        with open(paths.dependencies, 'r', encoding='utf-8') as f:
+            for dependency in tqdm.tqdm(csv.DictReader(f), desc='Merging dependencies'):
+                dependency_crate_id = dependency['crate_id']
+                version_id = dependency['version_id']
+                if version_id in version_id_to_crate_id:
+                    crate_id = version_id_to_crate_id[version_id]
+                    if crate_id in self.id2crates and dependency_crate_id in self.id2crates:
+                        self.id2crates[crate_id].dependency.append(self.id2crates[dependency_crate_id].name)
+            for crate in tqdm.tqdm(self.id2crates.values(), desc='Removing duplicates'):
+                crate.dependency = list(set(crate.dependency))
+            
+
     def remove_no_category_(self):
         for crate in list(self.id2crates.values()):
             if len(crate.category_indices) == 0:
+                del self.id2crates[crate.id]
+                del self.name2crates[crate.name]
+    
+    def remove_with_category_(self):
+        for crate in list(self.id2crates.values()):
+            if len(crate.category_indices) > 0:
                 del self.id2crates[crate.id]
                 del self.name2crates[crate.name]
 

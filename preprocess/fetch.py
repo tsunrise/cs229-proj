@@ -35,6 +35,7 @@ class CratesIOCSVPath:
     crates: str
     crates_categories: str
     dependencies: str
+    versions: str
 
 def dump_crate_io(force_download = False) -> CratesIOCSVPath:
     """Download the tar file from crate.io, and output the path to the csv data."""
@@ -55,7 +56,7 @@ def dump_crate_io(force_download = False) -> CratesIOCSVPath:
                 info.name = os.path.basename(info.name)
                 tar.extract(info, crates_io_path)
                 paths[filename] = os.path.join(crates_io_path, info.name)
-    return CratesIOCSVPath(paths["categories.csv"], paths["crates.csv"], paths["crates_categories.csv"], paths["dependencies.csv"])
+    return CratesIOCSVPath(paths["categories.csv"], paths["crates.csv"], paths["crates_categories.csv"], paths["dependencies.csv"], paths["versions.csv"])
 
 if __name__ == "__main__":
     crates_io_path = dump_crate_io()

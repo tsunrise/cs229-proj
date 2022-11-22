@@ -7,10 +7,11 @@ from tokenizers import (
     trainers,
     Tokenizer,
 )
+import copy
 
 from preprocess.prepare import Crate, CratesData
 from utils.cache import cached
-
+from utils.data import train_dev_split
 # tokens
 UNKNOWN_TOKEN = "[UNK]"
 SPECIAL_TOKENS = [UNKNOWN_TOKEN]
@@ -42,12 +43,19 @@ def train_tokenizer_main(num_words: int = 25000, save_path: str = "tokenizer.jso
     # get crates
     def get_data():
         cratesData = CratesData(force_download=force_download)
+        # copy cratesData
+        cratesDateUnsupervised = copy.deepcopy(cratesData)
         cratesData.remove_no_category_()
         cratesData.process_readme_()
-        return cratesData
-    
-    cratesData = cached(get_data, "crates_for_tokenizer.pkl", always_miss = not cache_readme)
-    crates = list(cratesData.all_crates())
+        cratesDateUnsupervised.process_readme_()
+        return cratesData, cratesDateUnsupervised
+    # get unsupervised
+
+    cratesData, cratesDataUnsupervised = cached(get_data, "crates_supervised_for_tokenizer.pkl", always_miss = not cache_readme)
+
+    cratesData, _ = train_dev_split(cratesData, train_ratio=0.8, seed=0)
+
+    crates = list(cratesData.all_crates()) + list(cratesDataUnsupervised.all_crates())
 
     # train tokenizer
     return train_tokenizer(crates, num_words, save_path)
