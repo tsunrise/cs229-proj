@@ -3,7 +3,6 @@ from torch import nn
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from metrics import metrics
-from .criterion import weighted_bce_loss
 
 def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: TokenizedDataset,
                          val_dataset: TokenizedDataset, config: dict, num_epochs: int, device=None):
