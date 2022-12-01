@@ -1,6 +1,7 @@
 from preprocess.dataset import TokenizedDataset
 from torch import nn
 import torch
+import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from metrics import metrics
 
@@ -19,8 +20,8 @@ def train_word_bag_model(model_name: str, model: nn.Module, train_dataset: Token
     for epoch in range(num_epochs):
         num_batches = len(dataloader)
         total_loss = 0
-        training_perf = metrics.PerformanceTracker()
-        val_perf = metrics.PerformanceTracker()
+        training_perf = metrics.PerformanceTracker(config["num_categories"])
+        val_perf = metrics.PerformanceTracker(config["num_categories"])
 
         model.train()
         for (indices, offsets, categories) in dataloader:

@@ -1,74 +1,50 @@
 from typing import Literal
 import numpy as np
 import torch
-from sklearn.metrics import precision_score, recall_score
-from torch.utils.tensorboard import SummaryWriter
-def logits_to_multi_hot(logits):
-    if isinstance(logits, list):
-        logits = np.array(logits)
-    elif isinstance(logits, torch.Tensor):
-        logits = logits.detach().cpu().numpy()
-    elif isinstance(logits, np.ndarray):
-        pass
-    else:
-        raise Exception("logits_to_multi_hot: unsupported type for logits")
-    return (logits > 0).astype(int)
 
-def logits_to_labels(logits):
-    if isinstance(logits, list):
-        logits = np.array(logits)
-    elif isinstance(logits, torch.Tensor):
-        logits = logits.detach().cpu().numpy()
-    elif isinstance(logits, np.ndarray):
-        pass
-    else:
-        raise Exception("logits_to_labels: unsupported type for logits")
-    return np.argmax(logits, axis=1)
+from torch.utils.tensorboard.writer import SummaryWriter
 
-def precision(y_true, y_pred):
-    label = "precision"
-    # for each class, the precision is the number of true positives divided by the number of true positives plus the number of false positives
-    # we calculate the weighted average of the precision of each class, where the weight is the number of true positives of that class
-    return label, precision_score(y_true, y_pred, average="weighted", zero_division=1)
+def accept_rate(labels, logits):
 
-def recall(y_true, y_pred):
-    label = "recall"
-    # for each class, the precision is the number of true positives divided by the number of true positives plus the number of false positives
-    # we calculate the weighted average of the precision of each class, where the weight is the number of true positives of that class
-    return label, recall_score(y_true, y_pred, average="weighted", zero_division=1)
-
-def accept_rate(y_true, y_pred_labels):
     """
-    y_pred_labels: (batch_size,) index of the predicted label
     In this metric, if the output label is contained in the true labels, it is considered correct.
     This is not that trivial: https://crates.io/categories?sort=crates
     """
-    label = "accept_rate"
-    return label, np.mean(y_true[np.arange(y_true.shape[0]), y_pred_labels])
+
+    pred_labels = np.argmax(logits.detach().cpu().numpy(), axis=1)
+    return np.mean(labels[np.arange(labels.shape[0]), pred_labels])
 
 class PerformanceTracker:
-    def __init__(self):
-        self.multi_label_metrics = [precision, recall]
-        self.single_label_metrics = [accept_rate]
-        self.results = {}
+    def __init__(self, num_classes: int):
+        self.tp = np.zeros(num_classes)
+        self.fp = np.zeros(num_classes)
+        self.fn = np.zeros(num_classes)
+        self.accept_rate_sum = 0
         self.cnt = 0
 
     def update(self, logits: torch.Tensor, labels: torch.Tensor):
-        y_true = labels.detach().cpu().numpy()
-        y_pred = logits_to_multi_hot(logits)
-        for m in self.multi_label_metrics:
-            k, v = m(y_true, y_pred)
-            self.results.setdefault(k, 0)
-            self.results[k] += v
-        y_pred_labels = logits_to_labels(logits)
-        for m in self.single_label_metrics:
-            k, v = m(y_true, y_pred_labels)
-            self.results.setdefault(k, 0)
-            self.results[k] += v
+        pred = (logits.detach().cpu().numpy() > 0).astype(int)
+        labels = labels.detach().cpu().numpy()
+
+        self.tp += np.sum(pred * labels, axis=0)
+        self.fp += np.sum(pred * (1 - labels), axis=0)
+        self.fn += np.sum((1 - pred) * labels, axis=0)
+        self.accept_rate_sum += accept_rate(labels, logits)
         self.cnt += 1
 
     def get_results(self):
-        return {k: v / self.cnt for k, v in self.results.items()}
+        weight = self.tp + self.fn
+        weight /= np.sum(weight)
+        
+        tpfp_mask = self.tp + self.fp > 0
+        precision = np.sum((self.tp[tpfp_mask] / (self.tp[tpfp_mask] + self.fp[tpfp_mask])) * weight[tpfp_mask])
+        tpfn_mask = self.tp + self.fn > 0
+        recall = np.sum((self.tp[tpfn_mask] / (self.tp[tpfn_mask] + self.fn[tpfn_mask])) * weight[tpfn_mask])
+        return {
+            "precision": precision,
+            "recall": recall,
+            "accept_rate": self.accept_rate_sum / self.cnt
+        }
 
     def write_to_tensorboard(self, prefix: Literal["training", "validation"] , writer: SummaryWriter, step: int, extra: dict = {}):
         for k, v in self.get_results().items():
