@@ -16,9 +16,9 @@ class NNModel(nn.Module):
         self.fc2 = nn.Linear(512, num_categories)
 
 
-
-    def forward(self, indices: torch.Tensor, offsets: torch.Tensor) -> torch.Tensor:
-        X = self.embedding(indices, offsets)
+    def forward(self, text: torch.Tensor, text_offsets: torch.Tensor, deps: torch.Tensor, deps_offsets: torch.Tensor) -> torch.Tensor:
+        # TODO: deps is not used yet
+        X = self.embedding(text, text_offsets)
         X = self.activation(X)
         X = self.dropout(X)
         X_rc = self.fc1(X)

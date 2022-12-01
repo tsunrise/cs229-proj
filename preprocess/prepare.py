@@ -20,11 +20,10 @@ class Crate:
     dependency: List[str]
     category_indices: List[int]
     processed: bool = False
-    # TODO: add dependency data
 
     def processed_string(self):
         assert self.processed
-        return " ".join([self.name, ".", "dependencies: "] + self.dependency + ["description: ", self.description, "readme: ", self.readme])
+        return " ".join(["description: ", self.description, "readme: ", self.readme])
 
 class Categories:
     def __init__(self, paths: CratesIOCSVPath) -> None:
@@ -127,7 +126,7 @@ class CratesData:
     def process_readme_(self):
         print('Processing readme')
         unprocessed = [crate.readme for crate in self.id2crates.values()]
-        processed = md2txt.batch_markdown_to_text(unprocessed)
+        processed = md2txt.batch_markdown_to_text(unprocessed)  # type: ignore
         for crate, text in zip(self.id2crates.values(), processed):
             crate.readme = text
             crate.processed = True

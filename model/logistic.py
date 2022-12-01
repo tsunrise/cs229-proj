@@ -14,8 +14,8 @@ class LogisticModel(nn.Module):
         self.embedding = nn.EmbeddingBag(num_words, num_categories, mode='sum')
         self.bias = nn.Parameter(torch.zeros(num_categories))
 
-    def forward(self, indices: torch.Tensor, offsets: torch.Tensor) -> torch.Tensor:
-        return self.embedding(indices, offsets) + self.bias
+    def forward(self, text: torch.Tensor, text_offsets: torch.Tensor, deps: torch.Tensor, deps_offsets: torch.Tensor) -> torch.Tensor:
+        return self.embedding(text, text_offsets) + self.bias
 
         
 

@@ -14,25 +14,26 @@ from utils.data import train_dev_split
 from utils.cache import cached
 # tokens
 UNKNOWN_TOKEN = "[UNK]"
-SPECIAL_TOKENS = [UNKNOWN_TOKEN]
+PADDING_TOKEN = "[PAD]"
+SPECIAL_TOKENS = [PADDING_TOKEN, UNKNOWN_TOKEN]
+PADDING_TOKEN_ID = 0
 
 def train_tokenizer(crates: List[Crate], num_words: int = 25000, num_deps = 2000, text_path: str = "text_tokenizer.json", dep_path: str = "dep_tokenizer.json"):
     # Train Text Tokenizer
     tk = Tokenizer(models.WordPiece(unk_token=UNKNOWN_TOKEN))
     tk.normalizer = normalizers.BertNormalizer(clean_text=True, handle_chinese_chars=True, strip_accents=True, lowercase=True)
     tk.pre_tokenizer = pre_tokenizers.BertPreTokenizer()
+    tk.enable_padding(pad_id=0, pad_token=PADDING_TOKEN, length=None)
     trainer = trainers.WordPieceTrainer(vocab_size = num_words, special_tokens = SPECIAL_TOKENS)
 
     def get_training_corpus():
         for i in range(0, len(crates), 1024):
             corpus = []
             for crate in crates[i:i+1024]:
-                corpus.append(crate.description)
-                corpus.append(crate.readme)
+                corpus.append(crate.processed_string())
             yield corpus
     
     tk.train_from_iterator(get_training_corpus(), trainer)
-
     tk.decoder = decoders.WordPiece(prefix="##")
 
     tk.save(text_path)
@@ -41,16 +42,16 @@ def train_tokenizer(crates: List[Crate], num_words: int = 25000, num_deps = 2000
     dtk = Tokenizer(models.WordLevel(unk_token=UNKNOWN_TOKEN))
     # seperate by white space
     dtk.pre_tokenizer = pre_tokenizers.Whitespace()
-    trainer = trainers.WordLevelTrainer(vocab_size = num_deps, special_tokens = SPECIAL_TOKENS)
+    trainer = trainers.WordLevelTrainer(vocab_size = num_deps, special_tokens = ["[UNK]"])
 
-    def get_training_corpus():
+    def get_training_corpus_dep():
         for i in range(0, len(crates), 1024):
             corpus = []
             for crate in crates[i:i+1024]:
                 corpus.append(" ".join(crate.dependency))
             yield corpus
 
-    dtk.train_from_iterator(get_training_corpus(), trainer)
+    dtk.train_from_iterator(get_training_corpus_dep(), trainer)
     dtk.save(dep_path)
     return tk, dtk
 

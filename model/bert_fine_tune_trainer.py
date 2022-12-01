@@ -4,7 +4,7 @@ from transformers import get_scheduler, DistilBertModel, DistilBertTokenizerFast
 from preprocess.dataset import BertDataset
 import torch
 from torch import nn
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from metrics.metrics import PerformanceTracker
 from utils import snapshots
 

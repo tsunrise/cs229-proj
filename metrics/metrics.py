@@ -20,17 +20,21 @@ class PerformanceTracker:
         self.fp = np.zeros(num_classes)
         self.fn = np.zeros(num_classes)
         self.accept_rate_sum = 0
+        self.loss_sum = 0
         self.cnt = 0
 
-    def update(self, logits: torch.Tensor, labels: torch.Tensor):
+    def update(self, logits: torch.Tensor, labels: torch.Tensor, loss: float):
+        batch_size = labels.shape[0]
+
         pred = (logits.detach().cpu().numpy() > 0).astype(int)
         labels = labels.detach().cpu().numpy()
 
         self.tp += np.sum(pred * labels, axis=0)
         self.fp += np.sum(pred * (1 - labels), axis=0)
         self.fn += np.sum((1 - pred) * labels, axis=0)
-        self.accept_rate_sum += accept_rate(labels, logits)
-        self.cnt += 1
+        self.accept_rate_sum += accept_rate(labels, logits) * batch_size
+        self.loss_sum += loss
+        self.cnt += batch_size
 
     def get_results(self):
         weight = self.tp + self.fn
@@ -41,10 +45,14 @@ class PerformanceTracker:
         tpfn_mask = self.tp + self.fn > 0
         recall = np.sum((self.tp[tpfn_mask] / (self.tp[tpfn_mask] + self.fn[tpfn_mask])) * weight[tpfn_mask])
         return {
+            "loss": self.loss_sum / self.cnt,
             "precision": precision,
             "recall": recall,
             "accept_rate": self.accept_rate_sum / self.cnt
         }
+
+    def result_str(self):
+        return ", ".join([f"{k}: {v:.4f}" for k, v in self.get_results().items()])
 
     def write_to_tensorboard(self, prefix: Literal["training", "validation"] , writer: SummaryWriter, step: int, extra: dict = {}):
         for k, v in self.get_results().items():

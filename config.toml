@@ -3,7 +3,7 @@ name = "logistic"
 num_words = 30000
 batch_size = 128
 learning_rate = 0.001
-max_length = 1000
+seq_len = 256
 weight_decay = 1e-5
 num_categories = 83
 
@@ -12,7 +12,7 @@ name = "nn"
 num_words = 30000
 batch_size = 128
 learning_rate = 0.0005
-max_length = 1000
+seq_len = 256
 weight_decay = 4e-1
 num_categories = 83
 
@@ -21,5 +21,5 @@ name = "distil_bert"
 pretrained = "distilbert-base-uncased"
 batch_size = 32
 learning_rate = 5e-5
-max_length = 256 # 512 is the max length for distilbert
+max_length = 256                       # 512 is the max length for distilbert
 num_categories = 83
