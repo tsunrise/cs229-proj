@@ -10,3 +10,4 @@ scikit-learn
 requests
 transformers
 tensorboard
+maturin
