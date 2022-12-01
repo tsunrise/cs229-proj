@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 class LogisticModel(nn.Module):
-    def __init__(self, num_words: int, num_categories: int):
+    def __init__(self, num_words: int, num_dep_words: int, num_categories: int):
         """
         Logistic Model using bag of words
         - Input: A vector of word counts X, where X[i] is the number of times the i-th word appears in the message.

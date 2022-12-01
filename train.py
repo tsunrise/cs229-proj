@@ -26,25 +26,31 @@ def load_data(force_cache_miss=False, force_download=False):
     num_categories = len(crates_data.categories)
     return train, dev, num_categories
 
-def train_word_bag(config, model, model_name, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
+def train_word_bag(config,  model_name, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     train, val, num_categories = load_data(force_cache_miss, force_download)
     text_tk = Tokenizer.from_file(TEXT_TOKENIZER_PATH)
     dep_tk = Tokenizer.from_file(DEP_TOKENIZER_PATH)
     dataset = CrateDataset(train, text_tk, dep_tk, num_categories, config["seq_len"])
     val_dataset = CrateDataset(val, text_tk, dep_tk, num_categories, config["seq_len"])
+
+    num_words = text_tk.get_vocab_size()
+    num_dep_words = dep_tk.get_vocab_size()
+
+    if model_name == "logistic":
+        model = LogisticModel(num_words, num_dep_words, num_categories).to(device)
+    elif model_name == "nn":
+        model = NNModel(num_words, num_dep_words, num_categories).to(device)
+    else:
+        raise ValueError("Invalid model name")
     train_word_bag_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
-def train_logistic(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
+def train_logistic(device, n_epochs, force_cache_miss, force_download):
     config = toml.load("config.toml")["models"]["logistic"]
-    model = LogisticModel(config["num_words"], config["num_categories"]).to(device)
-    model.train()
-    train_word_bag(config, model, "logistic", device, n_epochs, force_cache_miss, force_download)
+    train_word_bag(config, "logistic", device, n_epochs, force_cache_miss, force_download)
 
 def train_nn(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     config = toml.load("config.toml")["models"]["nn"]
-    model = NNModel(config["num_words"], config["num_categories"]).to(device)
-    model.train()
-    train_word_bag(config, model, "nn", device, n_epochs, force_cache_miss, force_download)
+    train_word_bag(config, "nn", device, n_epochs, force_cache_miss, force_download)
 
 def train_distil_bert(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     config = toml.load("config.toml")["models"]["distil_bert"]
