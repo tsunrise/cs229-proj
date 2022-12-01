@@ -8,7 +8,5 @@ toml
 tqdm
 scikit-learn
 requests
-markdown
-bs4
 transformers
 tensorboard

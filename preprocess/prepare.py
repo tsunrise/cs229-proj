@@ -2,10 +2,9 @@ import csv
 from dataclasses import dataclass
 from typing import List, Union
 import tqdm
-import markdown
-from bs4 import BeautifulSoup
 from preprocess.fetch import CratesIOCSVPath, dump_crate_io
 import datetime
+import md2txt
 @dataclass
 class Category:
     id: str
@@ -20,7 +19,7 @@ class Crate:
     readme: str
     dependency: List[str]
     category_indices: List[int]
-    processed: False
+    processed: bool = False
     # TODO: add dependency data
 
     def processed_string(self):
@@ -53,7 +52,9 @@ class CratesData:
         paths = dump_crate_io(force_download)
         self.categories = Categories(paths)
         self.id2crates = {}
+        self.id2idx = {}
         self.name2crates = {}
+        self.crates = []
         csv.field_size_limit(100000000)
         with open(paths.crates, 'r', encoding='utf-8') as f:
             raw_crates = list(csv.DictReader(f))
@@ -65,6 +66,8 @@ class CratesData:
             crate = Crate(crate_id, name, description, readme, [], [], False)
             self.id2crates[crate_id] = crate
             self.name2crates[crate.name] = crate
+            self.crates.append(crate)
+            self.id2idx[crate_id] = len(self.crates) - 1
         
         with open(paths.crates_categories, 'r', encoding='utf-8') as f:
             crates_categories = list(csv.DictReader(f))
@@ -122,13 +125,13 @@ class CratesData:
                 del self.name2crates[crate.name]
 
     def process_readme_(self):
-        # convert markdown to a list of words
-        for crate in tqdm.tqdm(self.id2crates.values(), desc='Processing readme'):
-            html = markdown.markdown(crate.readme)
-            text = BeautifulSoup(html, 'html.parser').get_text()
-            text = text.replace("\n", " ")
+        print('Processing readme')
+        unprocessed = [crate.readme for crate in self.id2crates.values()]
+        processed = md2txt.batch_markdown_to_text(unprocessed)
+        for crate, text in zip(self.id2crates.values(), processed):
             crate.readme = text
             crate.processed = True
+        print('Done Processing Readme')
 
     def all_crates(self):
         return self.id2crates.values()
