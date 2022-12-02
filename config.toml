@@ -13,7 +13,7 @@ learning_rate = 2e-4
 seq_len = 256
 weight_decay = 4e-1
 num_categories = 83
-pos_weight_threshold = 10.0
+pos_weight_threshold = 5.0
 
 [models.distil_bert]
 name = "distil_bert"

@@ -13,8 +13,8 @@ class NNModel(nn.Module):
         """
         super().__init__()
         self.embedding = nn.EmbeddingBag(num_words, 512, mode='sum')
-        self.depnet = DepNet(num_dep_words, 512, 0.5)
-        self.dropout = nn.Dropout(0.5)
+        self.depnet = DepNet(num_dep_words, 512, 0.55)
+        self.dropout = nn.Dropout(0.55)
         self.fc1 = nn.Linear(1024, 1024)
         self.fc2 = nn.Linear(1024, num_categories)
 
