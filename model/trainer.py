@@ -42,7 +42,7 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
 
     criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), pos_weight_threshold=config["pos_weight_threshold"]).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
-    writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')
+    writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}', flush_secs=30)
 
     for epoch in range(num_epochs):
         training_perf = metrics.PerformanceTracker(config["num_categories"])
@@ -81,5 +81,3 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
 
         training_perf.write_to_tensorboard("training", writer, epoch)
         val_perf.write_to_tensorboard("validation", writer, epoch)
-
-        writer.close()
