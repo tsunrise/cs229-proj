@@ -9,10 +9,11 @@ num_categories = 83
 [models.nn]
 name = "nn"
 batch_size = 128
-learning_rate = 0.0005
+learning_rate = 2e-4
 seq_len = 256
 weight_decay = 4e-1
 num_categories = 83
+pos_weight_threshold = 10.0
 
 [models.distil_bert]
 name = "distil_bert"

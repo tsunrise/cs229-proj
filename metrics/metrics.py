@@ -17,6 +17,7 @@ def accept_rate(labels, logits):
 class PerformanceTracker:
     def __init__(self, num_classes: int):
         self.tp = np.zeros(num_classes)
+        self.tn = np.zeros(num_classes)
         self.fp = np.zeros(num_classes)
         self.fn = np.zeros(num_classes)
         self.accept_rate_sum = 0
@@ -30,6 +31,7 @@ class PerformanceTracker:
         labels = labels.detach().cpu().numpy()
 
         self.tp += np.sum(pred * labels, axis=0)
+        self.tn += np.sum((1 - pred) * (1 - labels), axis=0)
         self.fp += np.sum(pred * (1 - labels), axis=0)
         self.fn += np.sum((1 - pred) * labels, axis=0)
         self.accept_rate_sum += accept_rate(labels, logits) * batch_size
@@ -44,11 +46,13 @@ class PerformanceTracker:
         precision = np.sum((self.tp[tpfp_mask] / (self.tp[tpfp_mask] + self.fp[tpfp_mask])) * weight[tpfp_mask])
         tpfn_mask = self.tp + self.fn > 0
         recall = np.sum((self.tp[tpfn_mask] / (self.tp[tpfn_mask] + self.fn[tpfn_mask])) * weight[tpfn_mask])
+        overall_accuracy = np.sum(np.sum(self.tp + self.tn) / np.sum(self.tp + self.tn + self.fp + self.fn))
         return {
             "loss": self.loss_sum / self.cnt,
             "precision": precision,
             "recall": recall,
-            "accept_rate": self.accept_rate_sum / self.cnt
+            "accept_rate": self.accept_rate_sum / self.cnt,
+            "accuracy": overall_accuracy,
         }
 
     def result_str(self):

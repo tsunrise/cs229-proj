@@ -1,6 +1,6 @@
 from model.logistic import LogisticModel
 from model.nn import NNModel
-from model.word_bag_trainer import train_word_bag_model
+from model.trainer import train_model
 from preprocess.dataset import CrateDataset
 from preprocess.prepare import CratesData
 from utils.cache import cached
@@ -42,7 +42,7 @@ def train_word_bag(config,  model_name, device, n_epochs, force_cache_miss, forc
         model = NNModel(num_words, num_dep_words, num_categories).to(device)
     else:
         raise ValueError("Invalid model name")
-    train_word_bag_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
+    train_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
 def train_logistic(device, n_epochs, force_cache_miss, force_download):
     config = toml.load("config.toml")["models"]["logistic"]
