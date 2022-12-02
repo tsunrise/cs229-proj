@@ -44,7 +44,7 @@ def train_word_bag(config,  model_name, device, n_epochs, force_cache_miss, forc
         raise ValueError("Invalid model name")
     train_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
-def train_logistic(device, n_epochs, force_cache_miss, force_download):
+def train_logistic(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     config = toml.load("config.toml")["models"]["logistic"]
     train_word_bag(config, "logistic", device, n_epochs, force_cache_miss, force_download)
 
