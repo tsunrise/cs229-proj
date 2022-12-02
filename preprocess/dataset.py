@@ -81,7 +81,8 @@ class CrateDataset(Dataset):
 
         text_tokens = torch.tensor(text_tokens)
         deps_tokens, deps_offsets = flatten_to_get_offsets(deps_tokens)
-        categories = torch.tensor(categories).float()
+        categories = np.array(categories)
+        categories = torch.tensor(categories, dtype=torch.float32)
 
         return {
             "text": text_tokens,

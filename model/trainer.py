@@ -1,6 +1,7 @@
 from model.logistic import LogisticModel
 from model.loss import weighted_bce_loss
 from model.nn import NNModel
+from model.lstm import LSTMModel
 from preprocess.dataset import CrateDataset
 from torch import nn
 import torch
@@ -13,6 +14,8 @@ def get_collate_fn(model):
         return CrateDataset.word_bag_collate_fn
     elif isinstance(model, LogisticModel):
         return CrateDataset.word_bag_collate_fn
+    elif isinstance(model, LSTMModel):
+        return CrateDataset.seq_collate_fn
     else:
         raise NotImplementedError()
 
@@ -23,14 +26,19 @@ def model_forward(model: nn.Module, batch, device):
         deps = batch["deps"].to(device)
         deps_offsets = batch["deps_offsets"].to(device)
         return model(text, text_offsets, deps, deps_offsets)
+    elif isinstance(model, LSTMModel):
+        text = batch["text"].to(device)
+        deps = batch["deps"].to(device)
+        deps_offsets = batch["deps_offsets"].to(device)
+        return model(text, deps, deps_offsets)
     else:
         raise NotImplementedError()
 
 def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
                          val_dataset: CrateDataset, config: dict, num_epochs: int, device=None):
     # model check
-    if not (isinstance(model, NNModel) or isinstance(model, LogisticModel)):
-        raise ValueError("model must be a LogisticModel or NNModel")
+    if not (isinstance(model, NNModel) or isinstance(model, LogisticModel) or isinstance(model, LSTMModel)):
+        raise NotImplementedError("Model not supported to train")
     
     collate_fn = get_collate_fn(model)
 

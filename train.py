@@ -1,5 +1,6 @@
 from model.logistic import LogisticModel
 from model.nn import NNModel
+from model.lstm import LSTMModel
 from model.trainer import train_model
 from preprocess.dataset import CrateDataset
 from preprocess.prepare import CratesData
@@ -26,13 +27,15 @@ def load_data(force_cache_miss=False, force_download=False):
     num_categories = len(crates_data.categories)
     return train, dev, num_categories
 
-def train_word_bag(config,  model_name, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
+def train_standard_model(model_name, config, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     train, val, num_categories = load_data(force_cache_miss, force_download)
     text_tk = Tokenizer.from_file(TEXT_TOKENIZER_PATH)
     dep_tk = Tokenizer.from_file(DEP_TOKENIZER_PATH)
     dataset = CrateDataset(train, text_tk, dep_tk, num_categories, config["seq_len"])
     val_dataset = CrateDataset(val, text_tk, dep_tk, num_categories, config["seq_len"])
 
+    print(f"Size of training set: {len(dataset)}")
+    print(f"Size of validation set: {len(val_dataset)}")
     num_words = text_tk.get_vocab_size()
     num_dep_words = dep_tk.get_vocab_size()
 
@@ -40,17 +43,11 @@ def train_word_bag(config,  model_name, device, n_epochs, force_cache_miss, forc
         model = LogisticModel(num_words, num_dep_words, num_categories).to(device)
     elif model_name == "nn":
         model = NNModel(num_words, num_dep_words, num_categories).to(device)
+    elif model_name == "lstm":
+        model = LSTMModel(num_words, num_dep_words, num_categories, config["hidden_size"], config["dropout_p"]).to(device)
     else:
         raise ValueError("Invalid model name")
     train_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
-
-def train_logistic(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
-    config = toml.load("config.toml")["models"]["logistic"]
-    train_word_bag(config, "logistic", device, n_epochs, force_cache_miss, force_download)
-
-def train_nn(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
-    config = toml.load("config.toml")["models"]["nn"]
-    train_word_bag(config, "nn", device, n_epochs, force_cache_miss, force_download)
 
 def train_distil_bert(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     config = toml.load("config.toml")["models"]["distil_bert"]
@@ -61,9 +58,11 @@ def train_distil_bert(device, n_epochs, force_cache_miss, force_download, checkp
     bert_fine_tune_trainer.train_distil_bert("distil_bert", model, config, train, val, n_epochs, device, checkpoint)
     
 
-trainers = {"logistic": train_logistic,
-             "nn": train_nn,
-             "distil_bert": train_distil_bert}
+trainers = {"logistic": train_standard_model,
+            "nn": train_standard_model,
+            "lstm": train_standard_model,
+            "distil_bert": train_distil_bert}
+
 
 if __name__ == '__main__':
     devices.status_check()
@@ -76,4 +75,5 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--checkpoint", type=str, required=False)
     args = parser.parse_args()
     trainer = trainers[args.model]
-    trainer(args.device, args.n_epochs, args.force_cache_miss, args.force_download, args.checkpoint)
+    config = toml.load("config.toml")["models"][args.model]
+    trainer(args.model, config, args.device, args.n_epochs, args.force_cache_miss, args.force_download, args.checkpoint)

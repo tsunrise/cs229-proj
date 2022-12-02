@@ -16,6 +16,17 @@ weight_decay = 4e-1
 num_categories = 83
 pos_weight_threshold = 4.0
 
+[models.lstm]
+name = "lstm"
+batch_size = 128
+learning_rate = 5e-4
+seq_len = 64
+num_categories = 83
+pos_weight_threshold = 2.0
+weight_decay = 4e-1
+hidden_size = 128
+dropout_p = 0.5
+
 [models.distil_bert]
 name = "distil_bert"
 pretrained = "distilbert-base-uncased"
