@@ -6,6 +6,7 @@ seq_len = 256
 weight_decay = 4e-1
 num_categories = 83
 pos_weight_threshold = 4.0
+loss = "weighted_bce"
 
 [models.nn]
 name = "nn"
@@ -15,7 +16,7 @@ seq_len = 256
 weight_decay = 4e-1
 num_categories = 83
 pos_weight_threshold = 4.0
-loss = "weighted_bce" # choose from "weighted_bce", "assymteric"
+loss = "weighted_bce"      # choose from "weighted_bce", "asymmetric"
 
 [models.lstm]
 name = "lstm"

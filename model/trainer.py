@@ -50,8 +50,10 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
 
     if config["loss"] == "weighted_bce":
         criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), pos_weight_threshold=config["pos_weight_threshold"]).to(device)
-    elif config["loss"] == "assymetric":
+    elif config["loss"] == "asymmetric":
         criterion = AsymmetricLossOptimized()
+    else:
+        raise NotImplementedError("Loss not supported")
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}', flush_secs=30)
 
