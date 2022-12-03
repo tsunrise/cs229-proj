@@ -49,13 +49,9 @@ def train_standard_model(model_name, config, device, n_epochs, force_cache_miss,
         raise ValueError("Invalid model name")
     train_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
-def train_distil_bert(device, n_epochs, force_cache_miss, force_download, checkpoint=None):
-    config = toml.load("config.toml")["models"]["distil_bert"]
-    model = bert_fine_tune_trainer.DistilBERTFineTune(config["pretrained"], config["num_categories"]).to(device)
-    print(model)
-    model.train()
+def train_distil_bert(model_name, config, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     train, val, _ = load_data(force_cache_miss, force_download)
-    bert_fine_tune_trainer.train_distil_bert("distil_bert", model, config, train, val, n_epochs, device, checkpoint)
+    bert_fine_tune_trainer.train_distil_bert(config, train, val, n_epochs, device, checkpoint)
     
 
 trainers = {"logistic": train_standard_model,

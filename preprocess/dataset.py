@@ -103,18 +103,18 @@ class BertDataset(Dataset):
         self.categories = categories
         self.num_categories = num_categories
 
-        crate_deps = [crate.dependency for crate in crates]
+        crate_deps = [" ".join(crate.dependency) for crate in crates]
         deps_tokens = deps_tokenizer.encode_batch(crate_deps)
         self.deps_tokens = [x.ids for x in deps_tokens]
 
     def __len__(self):
-        return len(self.tokens["input_ids"]) 
+        return len(self.tokens["input_ids"])   # type: ignore
 
     def __getitem__(self, idx):
        return {
-            "ids": self.tokens["input_ids"][idx],
-            "mask": self.tokens["attention_mask"][idx],
-            "token_type_ids": self.tokens["token_type_ids"][idx],
+            "ids": self.tokens["input_ids"][idx],   # type: ignore
+            "mask": self.tokens["attention_mask"][idx],   # type: ignore
+            "token_type_ids": self.tokens["token_type_ids"][idx],   # type: ignore
             "categories": self.categories[idx],
             "deps": self.deps_tokens[idx]
        }
@@ -125,6 +125,8 @@ class BertDataset(Dataset):
         mask = [item["mask"] for item in batch]
         token_type_ids = [item["token_type_ids"] for item in batch]
         categories = [item["categories"] for item in batch]
+        categories = np.array(categories)
+        categories = torch.tensor(categories, dtype=torch.float32)
 
         deps_tokens = [item["deps"] for item in batch]
         deps_tokens, deps_offsets = flatten_to_get_offsets(deps_tokens)
@@ -132,7 +134,7 @@ class BertDataset(Dataset):
             "ids": torch.tensor(ids, dtype=torch.long),
             "mask": torch.tensor(mask, dtype=torch.long),
             "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
-            "categories": np.array(categories),
+            "categories": categories,
             "deps": deps_tokens,
             "deps_offsets": deps_offsets
         }

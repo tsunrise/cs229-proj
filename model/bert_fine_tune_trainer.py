@@ -1,115 +1,158 @@
+from pathlib import Path
 from typing import List
+from tokenizers import Tokenizer
 from tqdm import tqdm
 from transformers import get_scheduler, DistilBertModel, DistilBertTokenizerFast
+from model.dep import DepNet
+from model.loss import weighted_bce_loss
 from preprocess.dataset import BertDataset
 import torch
 from torch import nn
 from torch.utils.tensorboard.writer import SummaryWriter
 from metrics.metrics import PerformanceTracker
-from utils import snapshots
-
+from train import DEP_TOKENIZER_PATH
+from torch.utils.data import DataLoader
 from preprocess.prepare import Crate
+from utils.temp import DataPaths
 
-class DistilBERTFineTune(nn.Module):
-    def __init__(self, pretrained_name: str, num_categories: int):
+class DepNetPrepare(nn.Module):
+    """
+    Before training DistriBERT transfer learning model, we need to prepare the DepNet model and 
+    use the prepared parameters to initialize the DepNet part of DistilBERT model.
+    """
+    def __init__(self, num_categories, num_dep_words: int, hidden_him: int, dropout_p: float = 0.1):
+        super().__init__()
+        self.depnet = DepNet(num_dep_words, hidden_him, dropout_p)
+        self.linear = nn.Linear(hidden_him, num_categories)
+
+    def forward(self, deps, deps_offsets):
+        deps = self.depnet(deps, deps_offsets)
+        return self.linear(deps)
+
+def prepare_depnet(train_dataloader: DataLoader, num_samples, n_epochs, num_dep_words, config: dict, criterion, device, writer = None) -> DepNet:
+    assert config["name"] == "depnet"
+    model = DepNetPrepare(config["num_categories"], num_dep_words, config["hidden_dim"], config["dropout_p"])
+    model.to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=config["learning_rate"])
+    progress_bar = tqdm(range(n_epochs), desc="Preparing DepNet")
+    for epoch in progress_bar:
+        loss_total = 0
+        for batch in train_dataloader:
+            model.train()
+            deps = batch["deps"].to(device)
+            deps_offsets = batch["deps_offsets"].to(device)
+            categories = batch["categories"].to(device)
+            logits = model(deps, deps_offsets)
+            loss = criterion(logits, categories)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            loss_total += loss.item()
+            if writer is not None:
+                writer.add_scalar("depnet_prepare/loss", loss, epoch)
+        progress_bar.set_postfix({"loss": loss_total / num_samples})
+    return model.depnet  
+
+class DistilBERTTransferLearning(nn.Module):
+    BERT_HIDDEN_DIM = 768
+    def __init__(self, pretrained_name: str, num_categories: int, num_dep_words, depnet_hidden_dim, depnet_dropout_p, dropout_p: float = 0.1):
         super().__init__()
         self.bert = DistilBertModel.from_pretrained(pretrained_name)
-        self.dropout = nn.Dropout(0.5)
-        self.output = nn.Linear(768, num_categories)
+        self.dropout = nn.Dropout(dropout_p)
+        self.depnet = DepNet(num_dep_words, depnet_hidden_dim, depnet_dropout_p)
+        self.output = nn.Linear(self.BERT_HIDDEN_DIM + depnet_hidden_dim, num_categories)
 
-    def forward(self, ids, mask):
-        X = self.bert(ids, attention_mask=mask)[0]
+    def forward(self, ids, mask, deps, deps_offsets):
+        X = self.bert(ids, attention_mask=mask)[0]   # type: ignore
         # pool across the sequence dimension (batch_size, seq_len, hidden_size) -> (batch_size, hidden_size)
         X = torch.mean(X, dim=1)
         X = self.dropout(X)
+        deps = self.depnet(deps, deps_offsets)
+        X = torch.cat([X, deps], dim=1)
         return self.output(X)
 
+def model_forward(model: DistilBERTTransferLearning, batch, device):
+    ids = batch["ids"].to(device)
+    mask = batch["mask"].to(device)
+    deps = batch["deps"].to(device)
+    deps_offsets = batch["deps_offsets"].to(device)
+    return model(ids, mask, deps, deps_offsets)
 
-def train_distil_bert(model_name, model: nn.Module, config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
+def save_checkpoint(model: DistilBERTTransferLearning, epoch: int, optimizer: torch.optim.Optimizer, scheduler, path: Path):
+    torch.save({
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "epoch": epoch
+    }, path)
+
+def load_checkpoint(model: DistilBERTTransferLearning, optimizer: torch.optim.Optimizer, scheduler, path: Path):
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    epoch = checkpoint["epoch"]
+    return epoch
+
+def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
+    deps_tokenizer = Tokenizer.from_file(DEP_TOKENIZER_PATH)
 
-    train_dataset = BertDataset(train_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:1000]
-    val_dataset = BertDataset(val_crates, tokenizer, config["max_length"], config["num_categories"]) # TODO: remove [:100]
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"])
+    train_dataset = BertDataset(train_crates, tokenizer, deps_tokenizer, config["max_length"], config["num_categories"])
+    val_dataset = BertDataset(val_crates, tokenizer, deps_tokenizer, config["max_length"], config["num_categories"])
     
-    dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
+    dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
+    val_dataloader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
+
+    model = DistilBERTTransferLearning(config["pretrained"], config["num_categories"], deps_tokenizer.get_vocab_size(), config["depnet"]["hidden_dim"], config["depnet"]["dropout_p"], config["dropout_p"])
+    model.to(device)
+    print(model)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"])
     lr_scheduler = get_scheduler(name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_epochs * len(dataloader))
 
-    criterion = torch.nn.BCEWithLogitsLoss()
-    writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')
-    if checkpoint:
-        state = snapshots.load_snapshot(checkpoint)
-        model.load_state_dict(state.model)
-        epoch_start = state.epoch
-        if state.optimizer:
-            optimizer.load_state_dict(state.optimizer)
-        if state.scheduler:
-            lr_scheduler.load_state_dict(state.scheduler)
+    criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), config["pos_weight_threshold"]).to(device)
+    writer = SummaryWriter(comment=f'distilbert_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')
+
+    paths = DataPaths()
+
+    if checkpoint is not None:
+        epoch_start = load_checkpoint(model, optimizer, lr_scheduler, checkpoint)
+        print(f"Loaded checkpoint {checkpoint} at epoch {epoch_start}")
     else:
+        depnet_config = config["depnet"]
+        depnet = prepare_depnet(dataloader, len(train_dataset), depnet_config["n_epochs"], deps_tokenizer.get_vocab_size(), depnet_config, criterion, device, writer)
+        model.depnet.load_state_dict(depnet.state_dict())
         epoch_start = 0
+
     for epoch in range(epoch_start, num_epochs):
-        num_batches = len(dataloader)
-        total_loss = 0
-        training_perf = PerformanceTracker()
-        val_perf = PerformanceTracker()
-
+        training_perf = PerformanceTracker(config["num_categories"])
+        val_perf = PerformanceTracker(config["num_categories"])
         model.train()
-        progressbar = tqdm(total=num_batches, desc=f"Training: {epoch:03d}")
-        for item in dataloader:
-            ids = item["ids"].to(device)
-            mask = item["mask"].to(device)
-            # token_type_ids = item["token_type_ids"].to(device) #TODO: no need
-            categories = torch.from_numpy(item["categories"]).to(device)
-
-            # Forward pass
-            outputs = model(ids, mask)
-            loss = criterion(outputs, categories)
-            total_loss += loss.item()
-
-            # Backward and optimize
+        for batch in tqdm(dataloader, desc="Train {}".format(epoch)):
+            logits = model_forward(model, batch, device)
+            categories = batch["categories"].to(device)
+            loss = criterion(logits, categories)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
-
-            # performance evaluate
-            training_perf.update(outputs, categories)
-            progressbar.update(1)
-            progressbar.set_postfix(loss=f"{loss.item():.4f}", acceptance=f"{training_perf.get_results()['accept_rate']:.4f}")
-        progressbar.close()
-
-        # validate
+            training_perf.update(logits, categories, loss.item())
         with torch.no_grad():
             model.eval()
-            val_loss = 0
-            num_val_batches = 0
-            for item in tqdm(val_dataloader, total=num_val_batches, desc=f"Val Epoch {epoch}"):
-                ids = item["ids"].to(device)
-                mask = item["mask"].to(device)
-                categories = torch.from_numpy(item["categories"]).to(device)
+            for batch in tqdm(val_dataloader, desc="Val {}".format(epoch)):
+                logits = model_forward(model, batch, device)
+                categories = batch["categories"].to(device)
+                loss = criterion(logits, categories)
+                val_perf.update(logits, categories, loss.item())
+        metrics_train = training_perf.result_str()
+        metrics_val = val_perf.result_str()
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Train: {metrics_train}")
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Val: {metrics_val}")
 
-                outputs = model(ids, mask)
-                loss = criterion(outputs, categories)
-                val_loss += loss.item()
-                num_val_batches += 1
+        training_perf.write_to_tensorboard("training", writer, epoch)
+        val_perf.write_to_tensorboard("validation", writer, epoch)
 
-                val_perf.update(outputs, categories)
-
-
-        average_loss = total_loss / num_batches
-        average_val_loss = val_loss / num_val_batches
-        print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.4f}, Val Loss: {average_val_loss:.4f}')
-        training_perf.write_to_tensorboard("training", writer, epoch, {"loss": average_loss, "learning_rate": optimizer.param_groups[0]["lr"]})
-        val_perf.write_to_tensorboard("validation", writer, epoch, {"loss": average_val_loss})
-
-        snapshots.save_snapshot("distilbert", model, epoch, "backup", optimizer, lr_scheduler)
-
-        print(f'Training: {training_perf.get_results()}')
-        print(f'Validation: {val_perf.get_results()}')
-
-        writer.close()
+        save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / f"distilbert_checkpoint.pt")
 
 
 
