@@ -55,21 +55,29 @@ def prepare_depnet(train_dataloader: DataLoader, num_samples, n_epochs, num_dep_
 
 class DistilBERTTransferLearning(nn.Module):
     BERT_HIDDEN_DIM = 768
-    def __init__(self, pretrained_name: str, num_categories: int, num_dep_words, depnet_hidden_dim, depnet_dropout_p, dropout_p: float = 0.1):
+    def __init__(self, pretrained_name: str, num_categories: int, num_dep_words, depnet_hidden_dim, depnet_dropout_p, no_dep: bool, dropout_p: float = 0.1, dropout_p_from_depnet: float = 0.5):
         super().__init__()
         self.bert = DistilBertModel.from_pretrained(pretrained_name)
         self.dropout = nn.Dropout(dropout_p)
+        self.dropout_from_depnet = nn.Dropout(dropout_p_from_depnet)
         self.depnet = DepNet(num_dep_words, depnet_hidden_dim, depnet_dropout_p)
         self.output = nn.Linear(self.BERT_HIDDEN_DIM + depnet_hidden_dim, num_categories)
+        if no_dep:
+            self.depnet = None
+            self.output = nn.Linear(self.BERT_HIDDEN_DIM, num_categories)
 
     def forward(self, ids, mask, deps, deps_offsets):
         X = self.bert(ids, attention_mask=mask)[0]   # type: ignore
         # pool across the sequence dimension (batch_size, seq_len, hidden_size) -> (batch_size, hidden_size)
         X = torch.mean(X, dim=1)
         X = self.dropout(X)
-        deps = self.depnet(deps, deps_offsets)
-        X = torch.cat([X, deps], dim=1)
-        return self.output(X)
+        if self.depnet is not None:
+            deps = self.depnet(deps, deps_offsets)
+            deps = self.dropout_from_depnet(deps)
+            X = torch.cat([X, deps], dim=1)
+            return self.output(X)
+        else:
+            return self.output(X)
 
 def model_forward(model: DistilBERTTransferLearning, batch, device):
     ids = batch["ids"].to(device)
@@ -104,7 +112,10 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
     dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
     val_dataloader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=BertDataset.bert_collate_fn)
 
-    model = DistilBERTTransferLearning(config["pretrained"], config["num_categories"], deps_tokenizer.get_vocab_size(), config["depnet"]["hidden_dim"], config["depnet"]["dropout_p"], config["dropout_p"])
+    no_dep = config["no_dep"]
+
+    model = DistilBERTTransferLearning(config["pretrained"], config["num_categories"], num_dep_words=deps_tokenizer.get_vocab_size(), depnet_hidden_dim=config["depnet"]["hidden_dim"], depnet_dropout_p=config["depnet"]["dropout_p"],
+     no_dep=no_dep, dropout_p=config["depnet"]["dropout_p"], dropout_p_from_depnet=config["dropout_p"])
     model.to(device)
     print(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"])
@@ -119,9 +130,10 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
         epoch_start = load_checkpoint(model, optimizer, lr_scheduler, checkpoint)
         print(f"Loaded checkpoint {checkpoint} at epoch {epoch_start}")
     else:
-        depnet_config = config["depnet"]
-        depnet = prepare_depnet(dataloader, len(train_dataset), depnet_config["n_epochs"], deps_tokenizer.get_vocab_size(), depnet_config, criterion, device, writer)
-        model.depnet.load_state_dict(depnet.state_dict())
+        if not no_dep:
+            depnet_config = config["depnet"]
+            depnet = prepare_depnet(dataloader, len(train_dataset), depnet_config["n_epochs"], deps_tokenizer.get_vocab_size(), depnet_config, criterion, device, writer)
+            model.depnet.load_state_dict(depnet.state_dict())
         epoch_start = 0
 
     for epoch in range(epoch_start, num_epochs):
@@ -153,6 +165,7 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
         val_perf.write_to_tensorboard("validation", writer, epoch)
 
         save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / f"distilbert_checkpoint.pt")
+    save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / f"distilbert_{epoch}.pt")
 
 
 
