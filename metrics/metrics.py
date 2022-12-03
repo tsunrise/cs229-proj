@@ -47,12 +47,18 @@ class PerformanceTracker:
         tpfn_mask = self.tp + self.fn > 0
         recall = np.sum((self.tp[tpfn_mask] / (self.tp[tpfn_mask] + self.fn[tpfn_mask])) * weight[tpfn_mask])
         overall_accuracy = np.sum(np.sum(self.tp + self.tn) / np.sum(self.tp + self.tn + self.fp + self.fn))
+        micro_precision = np.sum(self.tp) / np.sum(self.tp + self.fp)
+        micro_recall = np.sum(self.tp) / np.sum(self.tp + self.fn)
+        micro_f1 = 2 * micro_precision * micro_recall / (micro_precision + micro_recall)
         return {
             "loss": self.loss_sum / self.cnt,
             "precision": precision,
             "recall": recall,
             "accept_rate": self.accept_rate_sum / self.cnt,
             "accuracy": overall_accuracy,
+            "micro_precision": micro_precision,
+            "micro_recall": micro_recall,
+            "micro_f1": micro_f1,
         }
 
     def result_str(self):
