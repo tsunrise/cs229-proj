@@ -44,4 +44,4 @@ learning_rate = 2e-4
 num_categories = 83
 weight_decay = 4e-1
 dropout_p = 0.5
-n_epochs = 100
+n_epochs = 50
