@@ -56,6 +56,7 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
         raise NotImplementedError("Loss not supported")
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}', flush_secs=30)
+    writer.add_hparams(config, {})
 
     for epoch in range(num_epochs):
         training_perf = metrics.PerformanceTracker(config["num_categories"])

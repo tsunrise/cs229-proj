@@ -41,6 +41,7 @@ num_categories = 83
 pos_weight_threshold = 2.0
 weight_decay = 1e-1
 no_dep = false
+loss = "assymetric"
 
 [models.distil_bert.depnet]
 name = "depnet"

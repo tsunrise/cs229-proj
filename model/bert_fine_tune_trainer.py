@@ -4,7 +4,7 @@ from tokenizers import Tokenizer
 from tqdm import tqdm
 from transformers import get_scheduler, DistilBertModel, DistilBertTokenizerFast
 from model.dep import FeatNet
-from model.loss import weighted_bce_loss
+from model.loss import AsymmetricLossOptimized, weighted_bce_loss
 from preprocess.dataset import BertDataset
 import torch
 from torch import nn
@@ -14,6 +14,7 @@ from train import FEAT_TOKENIZER_PATH
 from torch.utils.data import DataLoader
 from preprocess.prepare import Crate
 from utils.temp import DataPaths
+import toml
 
 class DepNetPrepare(nn.Module):
     """
@@ -121,9 +122,14 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     lr_scheduler = get_scheduler(name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_epochs * len(dataloader))
 
-    criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), config["pos_weight_threshold"]).to(device)
-    writer = SummaryWriter(comment=f'distilbert_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}')
-
+    if config["loss"] == "weighted_bce":
+        criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), config["pos_weight_threshold"]).to(device)
+    elif config["loss"] == "assymetric":
+        criterion = AsymmetricLossOptimized()
+    else:
+        raise ValueError(f"Unknown loss {config['loss']}")
+    writer = SummaryWriter(comment=f'distilbert_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}_{config["loss"]}')
+    writer.add_text("config", toml.dumps(config))
     paths = DataPaths()
 
     if checkpoint is not None:
