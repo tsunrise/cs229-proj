@@ -17,7 +17,8 @@ class Crate:
     name: str
     description: str
     readme: str
-    dependency: List[str]
+    dependencies: List[str]
+    keywords: List[str]
     category_indices: List[int]
     processed: bool = False
 
@@ -50,10 +51,10 @@ class CratesData:
     def __init__(self, force_download = False) -> None:
         paths = dump_crate_io(force_download)
         self.categories = Categories(paths)
-        self.id2crates = {}
+        self.id2crates: dict[str, Crate] = {}
         self.id2idx = {}
         self.name2crates = {}
-        self.crates = []
+        self.crates: list[Crate] = []
         csv.field_size_limit(100000000)
         with open(paths.crates, 'r', encoding='utf-8') as f:
             raw_crates = list(csv.DictReader(f))
@@ -62,7 +63,7 @@ class CratesData:
             name = crate['name']
             description = crate['description']
             readme = crate['readme']
-            crate = Crate(crate_id, name, description, readme, [], [], False)
+            crate = Crate(crate_id, name, description, readme, [],[],[], False)
             self.id2crates[crate_id] = crate
             self.name2crates[crate.name] = crate
             self.crates.append(crate)
@@ -75,6 +76,18 @@ class CratesData:
             category = crate_category['category_id']
             if crate_id in self.id2crates and category in self.categories._id2idx:
                 self.id2crates[crate_id].category_indices.append(self.categories.index(category))
+
+        with open(paths.crates_keywords, 'r', encoding='utf-8') as f:
+            crates_keywords = list(csv.DictReader(f))
+        with open(paths.keywords, 'r', encoding='utf-8') as f:
+            keywords = list(csv.DictReader(f))
+        print(f"Loading Keywords")
+        id2keyword = {k['id']: k['keyword'] for k in keywords}
+        for crate_keyword in tqdm.tqdm(crates_keywords, desc='Merging crates-keywords relationship'):
+            crate_id = crate_keyword['crate_id']
+            keyword_id = crate_keyword['keyword_id']
+            if crate_id in self.id2crates:
+                self.id2crates[crate_id].keywords.append(id2keyword[keyword_id])
 
         print(f"Loading version ids")
         version_id_to_crate_id = {}
@@ -106,9 +119,9 @@ class CratesData:
                 if version_id in version_id_to_crate_id:
                     crate_id = version_id_to_crate_id[version_id]
                     if crate_id in self.id2crates and dependency_crate_id in self.id2crates:
-                        self.id2crates[crate_id].dependency.append(self.id2crates[dependency_crate_id].name)
-            for crate in tqdm.tqdm(self.id2crates.values(), desc='Removing duplicates'):
-                crate.dependency = list(set(crate.dependency))
+                        self.id2crates[crate_id].dependencies.append(self.id2crates[dependency_crate_id].name)
+            for crate in self.id2crates.values():
+                crate.dependencies = list(set(crate.dependencies))
             
 
     def remove_no_category_(self):
@@ -123,14 +136,17 @@ class CratesData:
                 del self.id2crates[crate.id]
                 del self.name2crates[crate.name]
 
-    def process_readme_(self):
-        print('Processing readme')
-        unprocessed = [crate.readme for crate in self.id2crates.values()]
-        processed = md2txt.batch_markdown_to_text(unprocessed)  # type: ignore
-        for crate, text in zip(self.id2crates.values(), processed):
-            crate.readme = text
+    def pre_normalize_(self):
+        print('Pre-normalizing using Rust Backend')
+        unprocessed_readme = [crate.readme for crate in self.id2crates.values()]
+        processed_readme = md2txt.batch_markdown_to_text(unprocessed_readme)
+        unprocessed_desc = [crate.description for crate in self.id2crates.values()]
+        processed_desc = md2txt.batch_normalize_text_simple(unprocessed_desc)
+        for crate, readme, desc in zip(self.id2crates.values(), processed_readme, processed_desc):
+            crate.readme = readme
+            crate.description = desc
             crate.processed = True
-        print('Done Processing Readme')
+        print('Done Pre-normalizing')
 
     def all_crates(self):
         return self.id2crates.values()

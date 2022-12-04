@@ -13,13 +13,13 @@ from tokenizers import Tokenizer
 import model.bert_fine_tune_trainer as bert_fine_tune_trainer
 
 TEXT_TOKENIZER_PATH = "text_tokenizer.json"
-DEP_TOKENIZER_PATH = "dep_tokenizer.json"
+FEAT_TOKENIZER_PATH = "feat_tokenizer.json"
 
 def load_data(force_cache_miss=False, force_download=False):
     def load():
         cratesData = CratesData(force_download=force_download)
         cratesData.remove_no_category_()
-        cratesData.process_readme_()
+        cratesData.pre_normalize_()
         return cratesData
     crates_data = cached(load, "preprocessed_crates_train.pkl", always_miss=force_cache_miss)
     crates = [crate for crate in crates_data]
@@ -30,7 +30,7 @@ def load_data(force_cache_miss=False, force_download=False):
 def train_standard_model(model_name, config, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
     train, val, num_categories = load_data(force_cache_miss, force_download)
     text_tk = Tokenizer.from_file(TEXT_TOKENIZER_PATH)
-    dep_tk = Tokenizer.from_file(DEP_TOKENIZER_PATH)
+    dep_tk = Tokenizer.from_file(FEAT_TOKENIZER_PATH)
     dataset = CrateDataset(train, text_tk, dep_tk, num_categories, config["seq_len"])
     val_dataset = CrateDataset(val, text_tk, dep_tk, num_categories, config["seq_len"])
 

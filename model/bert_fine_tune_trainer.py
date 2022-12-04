@@ -3,14 +3,14 @@ from typing import List
 from tokenizers import Tokenizer
 from tqdm import tqdm
 from transformers import get_scheduler, DistilBertModel, DistilBertTokenizerFast
-from model.dep import DepNet
+from model.dep import FeatNet
 from model.loss import weighted_bce_loss
 from preprocess.dataset import BertDataset
 import torch
 from torch import nn
 from torch.utils.tensorboard.writer import SummaryWriter
 from metrics.metrics import PerformanceTracker
-from train import DEP_TOKENIZER_PATH
+from train import FEAT_TOKENIZER_PATH
 from torch.utils.data import DataLoader
 from preprocess.prepare import Crate
 from utils.temp import DataPaths
@@ -22,14 +22,14 @@ class DepNetPrepare(nn.Module):
     """
     def __init__(self, num_categories, num_dep_words: int, hidden_him: int, dropout_p: float = 0.1):
         super().__init__()
-        self.depnet = DepNet(num_dep_words, hidden_him, dropout_p)
+        self.depnet = FeatNet(num_dep_words, hidden_him, dropout_p)
         self.linear = nn.Linear(hidden_him, num_categories)
 
     def forward(self, deps, deps_offsets):
         deps = self.depnet(deps, deps_offsets)
         return self.linear(deps)
 
-def prepare_depnet(train_dataloader: DataLoader, num_samples, n_epochs, num_dep_words, config: dict, criterion, device, writer = None) -> DepNet:
+def prepare_depnet(train_dataloader: DataLoader, num_samples, n_epochs, num_dep_words, config: dict, criterion, device, writer = None) -> FeatNet:
     assert config["name"] == "depnet"
     model = DepNetPrepare(config["num_categories"], num_dep_words, config["hidden_dim"], config["dropout_p"])
     model.to(device)
@@ -60,7 +60,7 @@ class DistilBERTTransferLearning(nn.Module):
         self.bert = DistilBertModel.from_pretrained(pretrained_name)
         self.dropout = nn.Dropout(dropout_p)
         self.dropout_from_depnet = nn.Dropout(dropout_p_from_depnet)
-        self.depnet = DepNet(num_dep_words, depnet_hidden_dim, depnet_dropout_p)
+        self.depnet = FeatNet(num_dep_words, depnet_hidden_dim, depnet_dropout_p)
         self.output = nn.Linear(self.BERT_HIDDEN_DIM + depnet_hidden_dim, num_categories)
         if no_dep:
             self.depnet = None
@@ -104,7 +104,7 @@ def load_checkpoint(model: DistilBERTTransferLearning, optimizer: torch.optim.Op
 
 def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
-    deps_tokenizer = Tokenizer.from_file(DEP_TOKENIZER_PATH)
+    deps_tokenizer = Tokenizer.from_file(FEAT_TOKENIZER_PATH)
 
     train_dataset = BertDataset(train_crates, tokenizer, deps_tokenizer, config["max_length"], config["num_categories"])
     val_dataset = BertDataset(val_crates, tokenizer, deps_tokenizer, config["max_length"], config["num_categories"])

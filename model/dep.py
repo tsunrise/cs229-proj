@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-class DepNet(nn.Module):
+class FeatNet(nn.Module):
     def __init__(self, num_dep_words: int, hidden_dim: int, dropout_p) -> None:
         super().__init__()
         self.embedding = nn.EmbeddingBag(num_dep_words, hidden_dim, mode='sum')

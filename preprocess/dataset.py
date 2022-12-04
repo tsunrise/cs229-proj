@@ -27,7 +27,7 @@ def flatten_to_get_offsets(lst: List[List[int]]) -> Tuple[torch.Tensor, torch.Te
     return torch.tensor(flattened), torch.tensor(offsets)
 
 class CrateDataset(Dataset):
-    def __init__(self, crates: List[Crate], text_tokenizer: Tokenizer, deps_tokenizer: Tokenizer, num_categories: int, seq_length: int = 128):
+    def __init__(self, crates: List[Crate], text_tokenizer: Tokenizer, feat_tokenizer: Tokenizer, num_categories: int, seq_length: int = 128):
         crate_strings = [crate.processed_string() for crate in crates]
         text_tokenizer.enable_padding(pad_id=PADDING_TOKEN_ID, pad_token=PADDING_TOKEN, length=seq_length)
         text_tokens = text_tokenizer.encode_batch(crate_strings)
@@ -40,8 +40,8 @@ class CrateDataset(Dataset):
         self.categories = categories
         self.num_categories = num_categories
 
-        crate_deps = [" ".join(crate.dependency) for crate in crates]
-        deps_tokens = deps_tokenizer.encode_batch(crate_deps)
+        crate_deps = [" ".join(crate.dependencies + crate.keywords) for crate in crates]
+        deps_tokens = feat_tokenizer.encode_batch(crate_deps)
         self.deps_tokens = [x.ids for x in deps_tokens]
 
     def __len__(self):
@@ -92,7 +92,7 @@ class CrateDataset(Dataset):
         }
 
 class BertDataset(Dataset):
-    def __init__(self, crates: List[Crate], tokenizer: DistilBertTokenizerFast, deps_tokenizer: Tokenizer, max_length: int, num_categories: int):
+    def __init__(self, crates: List[Crate], tokenizer: DistilBertTokenizerFast, feat_tokenizer: Tokenizer, max_length: int, num_categories: int):
         crate_strings = [crate.processed_string() for crate in crates]
         print("Encoding")
         self.tokens = tokenizer(crate_strings, max_length= max_length, padding='max_length', return_token_type_ids=True, return_attention_mask=True, truncation=True)
@@ -103,8 +103,8 @@ class BertDataset(Dataset):
         self.categories = categories
         self.num_categories = num_categories
 
-        crate_deps = [" ".join(crate.dependency) for crate in crates]
-        deps_tokens = deps_tokenizer.encode_batch(crate_deps)
+        crate_deps = [" ".join(crate.dependencies + crate.keywords) for crate in crates]
+        deps_tokens = feat_tokenizer.encode_batch(crate_deps)
         self.deps_tokens = [x.ids for x in deps_tokens]
 
     def __len__(self):
