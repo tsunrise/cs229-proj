@@ -8,6 +8,7 @@ import torch
 import torch.utils.data
 from torch.utils.tensorboard.writer import SummaryWriter
 from metrics import metrics
+import toml
 
 def get_collate_fn(model):
     if isinstance(model, NNModel):
@@ -56,7 +57,7 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
         raise NotImplementedError("Loss not supported")
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}', flush_secs=30)
-    writer.add_hparams(config, {})
+    writer.add_text("config", toml.dumps(config))
 
     for epoch in range(num_epochs):
         training_perf = metrics.PerformanceTracker(config["num_categories"])
