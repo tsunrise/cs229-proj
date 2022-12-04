@@ -118,7 +118,7 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
      no_dep=no_dep, dropout_p=config["depnet"]["dropout_p"], dropout_p_from_depnet=config["dropout_p"])
     model.to(device)
     print(model)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     lr_scheduler = get_scheduler(name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_epochs * len(dataloader))
 
     criterion = weighted_bce_loss(train_dataset.categories.sum(axis=0), len(train_dataset), config["pos_weight_threshold"]).to(device)
