@@ -44,7 +44,7 @@ no_dep = false
 
 [models.distil_bert.depnet]
 name = "depnet"
-hidden_dim = 128
+hidden_dim = 512
 learning_rate = 1e-4
 num_categories = 83
 weight_decay = 4e-1
