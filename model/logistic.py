@@ -11,12 +11,9 @@ class LogisticModel(nn.Module):
         do the same thing. Each embedding dimension serves as logit score for a category.
         """
         super().__init__()
-        # y = sigmoid(W_text@X_text + W_deps@X_deps + b)
-        self.embedding_text = nn.EmbeddingBag(num_words, num_categories, mode='sum')
-        self.embedding_deps = nn.EmbeddingBag(num_dep_words, num_categories, mode='sum')
+        # y = sigmoid(W@(X_text || X_deps) + b)
+        self.embedding = nn.EmbeddingBag(num_words + num_dep_words, num_categories, mode="sum")
         self.bias = nn.Parameter(torch.zeros(num_categories))
-        # return logits
-
         self.num_words = num_words
 
     def forward(self, text: torch.Tensor, text_offsets: torch.Tensor, deps: torch.Tensor, deps_offsets: torch.Tensor) -> torch.Tensor:
@@ -27,9 +24,9 @@ class LogisticModel(nn.Module):
         :param deps_offsets: Tensor of offsets for each message
         :return: Tensor of shape (batch_size, num_categories)
         """
-        text_embedding = self.embedding_text(text, text_offsets)
-        deps_embedding = self.embedding_deps(deps, deps_offsets)
-        return text_embedding + deps_embedding + self.bias
+        text_embed = self.embedding(text, text_offsets)
+        deps_embed = self.embedding(deps + self.num_words, deps_offsets)
+        return text_embed + deps_embed + self.bias
 
 
         
