@@ -10,7 +10,7 @@ from tokenizers import (
 import copy
 
 from preprocess.prepare import Crate, CratesData
-from utils.data import train_dev_split
+from utils.data import train_dev_test_split
 from utils.cache import cached
 # tokens
 UNKNOWN_TOKEN = "[UNK]"
@@ -75,7 +75,7 @@ def train_tokenizer_main(num_words: int = 25000, num_feats=2000, force_download:
 
     # exclude validation set and test set
     crates_train = list(cratesData.all_crates())
-    crates_train, _ = train_dev_split(crates_train, train_ratio=0.8, seed=0)
+    crates_train, _, _ = train_dev_test_split(crates_train)
 
     crates = list(cratesData.all_crates()) + list(cratesDateUnsupervised.all_crates())
 

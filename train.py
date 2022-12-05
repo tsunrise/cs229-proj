@@ -5,7 +5,7 @@ from model.trainer import train_model
 from preprocess.dataset import CrateDataset
 from preprocess.prepare import CratesData
 from utils.cache import cached
-from utils.data import train_dev_split
+from utils.data import train_dev_test_split
 import utils.devices as devices
 import toml
 import argparse
@@ -23,12 +23,22 @@ def load_data(force_cache_miss=False, force_download=False):
         return cratesData
     crates_data = cached(load, "preprocessed_crates_train.pkl", always_miss=force_cache_miss)
     crates = [crate for crate in crates_data]
-    train, dev = train_dev_split(crates, train_ratio=0.8, seed=0)
+    train, dev, test = train_dev_test_split(crates)
     num_categories = len(crates_data.categories)
-    return train, dev, num_categories
+    return train, dev, test, num_categories
+
+def get_standard_model(model_name, num_words, num_dep_words, num_categories):
+    if model_name == "logistic":
+        return LogisticModel(num_words, num_dep_words, num_categories)
+    elif model_name == "nn":
+        return NNModel(num_words, num_dep_words, num_categories)
+    elif model_name == "lstm":
+        return LSTMModel(num_words, num_dep_words, num_categories, config["hidden_size"], config["dropout_p"])
+    else:
+        raise ValueError("Invalid model name")
 
 def train_standard_model(model_name, config, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
-    train, val, num_categories = load_data(force_cache_miss, force_download)
+    train, val, _,  num_categories = load_data(force_cache_miss, force_download)
     text_tk = Tokenizer.from_file(TEXT_TOKENIZER_PATH)
     dep_tk = Tokenizer.from_file(FEAT_TOKENIZER_PATH)
     dataset = CrateDataset(train, text_tk, dep_tk, num_categories, config["seq_len"])
@@ -39,18 +49,11 @@ def train_standard_model(model_name, config, device, n_epochs, force_cache_miss,
     num_words = text_tk.get_vocab_size()
     num_dep_words = dep_tk.get_vocab_size()
 
-    if model_name == "logistic":
-        model = LogisticModel(num_words, num_dep_words, num_categories).to(device)
-    elif model_name == "nn":
-        model = NNModel(num_words, num_dep_words, num_categories).to(device)
-    elif model_name == "lstm":
-        model = LSTMModel(num_words, num_dep_words, num_categories, config["hidden_size"], config["dropout_p"]).to(device)
-    else:
-        raise ValueError("Invalid model name")
+    model = get_standard_model(model_name, num_words, num_dep_words, num_categories).to(device)
     train_model(model_name, model, dataset, val_dataset, config, n_epochs, device)
 
 def train_distil_bert(model_name, config, device, n_epochs, force_cache_miss, force_download, checkpoint=None):
-    train, val, _ = load_data(force_cache_miss, force_download)
+    train, val, _, _ = load_data(force_cache_miss, force_download)
     bert_fine_tune_trainer.train_distil_bert(config, train, val, n_epochs, device, checkpoint)
     
 

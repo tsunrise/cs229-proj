@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from preprocess.prepare import Crate
 from utils.temp import DataPaths
 import toml
+from datetime import datetime
 
 class DepNetPrepare(nn.Module):
     """
@@ -103,6 +104,12 @@ def load_checkpoint(model: DistilBERTTransferLearning, optimizer: torch.optim.Op
     epoch = checkpoint["epoch"]
     return epoch
 
+def get_bert_model(config: dict, num_dep_words, device):
+    model = DistilBERTTransferLearning(config["pretrained"], config["num_categories"], num_dep_words=num_dep_words, depnet_hidden_dim=config["depnet"]["hidden_dim"], depnet_dropout_p=config["depnet"]["dropout_p"],
+     no_dep=config["no_dep"], dropout_p=config["depnet"]["dropout_p"], dropout_p_from_depnet=config["dropout_p"])
+    model.to(device)
+    return model
+
 def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate], num_epochs: int, device, checkpoint = None):
     tokenizer = DistilBertTokenizerFast.from_pretrained(config["pretrained"])
     deps_tokenizer = Tokenizer.from_file(FEAT_TOKENIZER_PATH)
@@ -115,9 +122,7 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
 
     no_dep = config["no_dep"]
 
-    model = DistilBERTTransferLearning(config["pretrained"], config["num_categories"], num_dep_words=deps_tokenizer.get_vocab_size(), depnet_hidden_dim=config["depnet"]["hidden_dim"], depnet_dropout_p=config["depnet"]["dropout_p"],
-     no_dep=no_dep, dropout_p=config["depnet"]["dropout_p"], dropout_p_from_depnet=config["dropout_p"])
-    model.to(device)
+    model = get_bert_model(config, deps_tokenizer.get_vocab_size(), device)
     print(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
     lr_scheduler = get_scheduler(name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_epochs * len(dataloader))
@@ -128,7 +133,7 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
         criterion = AsymmetricLossOptimized()
     else:
         raise ValueError(f"Unknown loss {config['loss']}")
-    writer = SummaryWriter(comment=f'distilbert_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}_{config["loss"]}')
+    writer = SummaryWriter(f'runs/train/distilbert/{datetime.now().strftime("%Y%m%d-%H%M%S")}')
     writer.add_text("config", toml.dumps(config))
     paths = DataPaths()
 
@@ -170,7 +175,8 @@ def train_distil_bert(config, train_crates: List[Crate],val_crates: List[Crate],
         training_perf.write_to_tensorboard("training", writer, epoch)
         val_perf.write_to_tensorboard("validation", writer, epoch)
 
-        save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / f"distilbert_checkpoint.pt")
+        ct_name = "distilbert_checkpoint.pt" if epoch % 10 != 0 else f"distilbert_{epoch}.pt"
+        save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / ct_name)
     save_checkpoint(model, epoch, optimizer, lr_scheduler, paths.snapshots_dir / f"distilbert_{epoch}.pt")
 
 

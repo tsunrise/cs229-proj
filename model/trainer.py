@@ -9,6 +9,8 @@ import torch.utils.data
 from torch.utils.tensorboard.writer import SummaryWriter
 from metrics import metrics
 import toml
+from datetime import datetime
+from utils.temp import DataPaths
 
 def get_collate_fn(model):
     if isinstance(model, NNModel):
@@ -36,7 +38,7 @@ def model_forward(model: nn.Module, batch, device):
         raise NotImplementedError()
 
 def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
-                         val_dataset: CrateDataset, config: dict, num_epochs: int, device=None):
+                         val_dataset: CrateDataset, config: dict, num_epochs: int, device=None, checkpoint=None):
     # model check
     if not (isinstance(model, NNModel) or isinstance(model, LogisticModel) or isinstance(model, LSTMModel)):
         raise NotImplementedError("Model not supported to train")
@@ -56,7 +58,7 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
     else:
         raise NotImplementedError("Loss not supported")
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
-    writer = SummaryWriter(comment=f'{model_name}_{config["learning_rate"]}_bs_{config["batch_size"]}_ne_{num_epochs}', flush_secs=30)
+    writer = SummaryWriter(f'runs/train/{model_name}/{datetime.now().strftime("%Y%m%d-%H%M%S")}', flush_secs=30)
     writer.add_text("config", toml.dumps(config))
 
     for epoch in range(num_epochs):
@@ -96,3 +98,8 @@ def train_model(model_name: str, model: nn.Module, train_dataset: CrateDataset,
 
         training_perf.write_to_tensorboard("training", writer, epoch)
         val_perf.write_to_tensorboard("validation", writer, epoch)
+    
+    writer.close()
+    datapath = DataPaths()
+    ct_name = f"{model_name}_{num_epochs}"
+    torch.save(model.state_dict(), datapath.snapshots_dir / f"{ct_name}.pt")
