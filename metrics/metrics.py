@@ -1,4 +1,3 @@
-from typing import Literal
 import numpy as np
 import torch
 
@@ -64,7 +63,7 @@ class PerformanceTracker:
     def result_str(self):
         return ", ".join([f"{k}: {v:.4f}" for k, v in self.get_results().items()])
 
-    def write_to_tensorboard(self, prefix: Literal["training", "validation"] , writer: SummaryWriter, step: int, extra: dict = {}):
+    def write_to_tensorboard(self, prefix: str, writer: SummaryWriter, step: int, extra: dict = {}):
         for k, v in self.get_results().items():
             writer.add_scalar(f"{prefix}/{k}", v, step)
         for k, v in extra.items():
