@@ -79,7 +79,7 @@ class CrateDataset(Dataset):
         deps_tokens = [x["deps"] for x in batch]
         categories = [x["categories"] for x in batch]
 
-        text_tokens = torch.tensor(text_tokens)
+        text_tokens = torch.tensor(text_tokens).long()
         deps_tokens, deps_offsets = flatten_to_get_offsets(deps_tokens)
         categories = np.array(categories)
         categories = torch.tensor(categories, dtype=torch.float32)
@@ -135,8 +135,8 @@ class BertDataset(Dataset):
             "mask": torch.tensor(mask, dtype=torch.long),
             "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
             "categories": categories,
-            "deps": deps_tokens.long(),
-            "deps_offsets": deps_offsets.long()
+            "deps": deps_tokens,
+            "deps_offsets": deps_offsets
         }
 
         
