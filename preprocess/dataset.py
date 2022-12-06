@@ -24,7 +24,7 @@ def flatten_to_get_offsets(lst: List[List[int]]) -> Tuple[torch.Tensor, torch.Te
         flattened.extend(l)
         offsets.append(offset)
         offset += len(l)
-    return torch.tensor(flattened), torch.tensor(offsets)
+    return torch.tensor(flattened).long(), torch.tensor(offsets).long()
 
 class CrateDataset(Dataset):
     def __init__(self, crates: List[Crate], text_tokenizer: Tokenizer, feat_tokenizer: Tokenizer, num_categories: int, seq_length: int = 128):
@@ -135,8 +135,8 @@ class BertDataset(Dataset):
             "mask": torch.tensor(mask, dtype=torch.long),
             "token_type_ids": torch.tensor(token_type_ids, dtype=torch.long),
             "categories": categories,
-            "deps": deps_tokens,
-            "deps_offsets": deps_offsets
+            "deps": deps_tokens.long(),
+            "deps_offsets": deps_offsets.long()
         }
 
         
