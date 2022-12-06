@@ -111,7 +111,7 @@ def evaluate_bert_model(model_name, config, device, force_cache_miss, force_down
 evaluator = {
     "logistic": evaluate_standard_model,
     "nn": evaluate_standard_model,
-    "bert": evaluate_bert_model,
+    "distil_bert": evaluate_bert_model,
 }
 
 if __name__ == "__main__":
