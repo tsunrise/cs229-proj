@@ -1,8 +1,8 @@
 # CS229 Final Project: Software Classification using NLP
 
-# Setup
+## Setup
 
-## Install Dependencies
+### Install Dependencies
 Create a virtual environment and install the requirements.
 ```sh
 python3 -m venv env
@@ -10,12 +10,12 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
-## Install Rust
+### Install Rust
 On Linux and macOS, run the following command in your terminal. On Windows, download and run the executable from [here](https://www.rust-lang.org/tools/install).
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-## Compile Markdown Normalizer
+### Compile Markdown Normalizer
 The markdown normalizer is written in Rust, so you need to compile it before using it. On a virtual environment, run the following commands:
 ```sh
 cd md2txt
@@ -28,13 +28,13 @@ If you do not want to use a virtual environment, you can install the `md2txt` pa
 chmod +x install_rust_backend.sh
 ./install_rust_backend.sh
 ```
-# Generate Tokenizer
+## Generate Tokenizer
 A pre-trained tokenizer is already provided in this repository. If you want to generate a new tokenizer, run the following command:
 ```
 python generate_tk.py
 ```
 
-# Train
+## Train
 There are three possible models to train: `logistic`, `nn`, and `bert`. To train a model, run the following command:
 ```
 python train.py -m <model> -d <device> -n <num_epochs>
@@ -49,7 +49,7 @@ There are additional flags provided:
 
 The trained model will be saved in the `.cs229_cache/snapshots` directory. Training curve will be saved in `runs` directory and can be viewed using TensorBoard.
 
-# Evaluate
+## Evaluate
 To evaluate a model, run the following command:
 ```sh
 python evaluate.py -m <model> -d <device> -c <checkpoint>
