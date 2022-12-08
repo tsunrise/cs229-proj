@@ -1,8 +1,13 @@
+import numpy as np
+from sklearn import metrics
+import matplotlib.pyplot as plt
 from tokenizers import Tokenizer
 from model.bert_fine_tune_trainer import get_bert_model
 from model.trainer import get_collate_fn, model_forward
 import torch
 import torch.utils.data
+import preprocess.prepare
+import utils.cache
 from metrics.metrics import PerformanceTracker
 from preprocess.dataset import BertDataset, CrateDataset
 from train import FEAT_TOKENIZER_PATH, TEXT_TOKENIZER_PATH, get_standard_model, load_data
@@ -10,6 +15,64 @@ from tqdm import tqdm
 from transformers import DistilBertTokenizerFast
 import model.bert_fine_tune_trainer as bert_fine_tune_trainer
 import toml
+import time
+
+def get_category_label():
+    dataset = preprocess.prepare.CratesData()
+    return dataset.categories
+
+def get_results(perf: PerformanceTracker, output_logits, true_labels, fig_prefix):
+    category_labels = utils.cache.cached(get_category_label, "category_labels.pkl")
+
+    actual = np.concatenate(true_labels)
+    predict = np.concatenate(output_logits)
+    num_pos_examples = np.sum(actual)
+
+    # Compute PRC curve and AUC for each class
+    precision = dict()
+    recall = dict()
+    auprc = np.zeros(len(actual[0]))
+    auprc_weighted = 0
+
+    for i in range(len(actual[0])):
+        precision[i], recall[i], _ = metrics.precision_recall_curve(actual[:,i], predict[:,i])
+        auprc[i] = metrics.auc(recall[i], precision[i])
+        
+        weight = np.sum(actual[:,i]) / num_pos_examples
+        auprc_weighted += 0 if np.isnan(auprc[i]) else auprc[i] * weight
+    
+    precision["micro"], recall["micro"], _ = metrics.precision_recall_curve(actual.ravel(), predict.ravel())
+    auprc_micro = metrics.auc(recall["micro"], precision["micro"])
+    
+    # Plot PRC curves for top three AUC and weighted
+    plt.figure()
+    plt.xlim([0.0, 1.05])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    # plt.title('Precision-Recall Curve')
+    
+    max_indices = (-auprc).argsort()[:5]
+    plt.plot(recall["micro"], precision["micro"], label='Micro Avg (area=%0.2f)' % auprc_micro)
+    for i in max_indices:
+        plt.plot(recall[i], precision[i], label='%s (area=%0.2f)' % (category_labels.get_label_name(i), auprc[i]))
+    plt.legend(loc="lower right")
+    plt.savefig(f'visuals/{fig_prefix}{datetime.now().strftime("%Y%m%d-%H%M%S")}.png')
+    time.sleep(2)
+
+    return {
+        "perf": perf.get_results(),
+        "auprc": np.nansum(auprc_weighted)
+    }
+
+def summarize_results(train_results, val_results, test_results, config):
+    return {
+        "config": config,
+        "train": train_results,
+        "val": val_results,
+        "test": test_results
+    }
+
 def evaluate_on_dataset(model, dataset, device, config):
     collate_fn = get_collate_fn(model)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=collate_fn)
@@ -25,22 +88,6 @@ def evaluate_on_dataset(model, dataset, device, config):
         output_logits.append(outputs.detach().cpu().numpy())
         true_labels.append(categories.detach().cpu().numpy())
     return perf, output_logits, true_labels
-
-def get_results(perf: PerformanceTracker, output_logits, true_labels):
-    return {
-        "perf": perf.get_results()
-        # TODO: add AUC
-        # TODO: add ROC curve
-    }
-
-def summarize_results(train_results, val_results, test_results, config):
-    return {
-        "config": config,
-        "train": train_results,
-        "val": val_results,
-        "test": test_results
-    }
-
 
 def evaluate_standard_model(model_name, config, device, force_cache_miss, force_download, checkpoint):
     train, val, test, num_categories = load_data(force_cache_miss, force_download)
@@ -63,9 +110,9 @@ def evaluate_standard_model(model_name, config, device, force_cache_miss, force_
     print("Evaluating on test")
     test_perf, test_logits, test_labels = evaluate_on_dataset(model, test_dataset, device, config)
 
-    train_results = get_results(train_perf, train_logits, train_labels)
-    val_results = get_results(val_perf, val_logits, val_labels)
-    test_results = get_results(test_perf, test_logits, test_labels)
+    train_results = get_results(train_perf, train_logits, train_labels, model_name+"_train_")
+    val_results = get_results(val_perf, val_logits, val_labels, model_name+"_val_")
+    test_results = get_results(test_perf, test_logits, test_labels, model_name+"_test_")
 
     return summarize_results(train_results, val_results, test_results, config)
 
@@ -100,9 +147,9 @@ def evaluate_bert_model(model_name, config, device, force_cache_miss, force_down
     print("Evaluating on test")
     test_perf, test_logits, test_labels = evaluate_on_bert_dataset(model, test_dataset, device, config)
 
-    train_results = get_results(train_perf, train_logits, train_labels)
-    val_results = get_results(val_perf, val_logits, val_labels)
-    test_results = get_results(test_perf, test_logits, test_labels)
+    train_results = get_results(train_perf, train_logits, train_labels, model_name+"_train_")
+    val_results = get_results(val_perf, val_logits, val_labels, model_name+"_val_")
+    test_results = get_results(test_perf, test_logits, test_labels, model_name+"_test_")
 
     return summarize_results(train_results, val_results, test_results, config)
 

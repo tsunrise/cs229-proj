@@ -47,6 +47,9 @@ class Categories:
     def index(self, id: str) -> int:
         return self._id2idx[id]
 
+    def get_label_name(self, pos: int):
+        return self._list[pos].name
+
 class CratesData:
     def __init__(self, force_download = False) -> None:
         paths = dump_crate_io(force_download)
