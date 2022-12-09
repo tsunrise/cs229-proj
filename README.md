@@ -60,3 +60,10 @@ python evaluate.py -m logistic -d cuda -c .cs229_cache/snapshots/logistic_200.pt
 ```
 
 Evaluation result will be saved in `runs` directory, and can be viewed using TensorBoard `Text` tab.
+
+## Note
+We also included an LSTM model, but it is not used in the final report. To train the LSTM model, run:
+```sh
+python train.py -m lstm -d cuda -n 200
+```
+We did not include LSTM since its performance is not as good as the other models, due to our small dataset size.
